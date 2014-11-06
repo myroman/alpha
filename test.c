@@ -9,6 +9,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 
 
 int main () {
@@ -16,5 +17,5 @@ int main () {
 	int i =100;
 	debug("%d", i);
 	info("Tesing info msg");
-	//exit(0);
+	return EXIT_SUCCESS;
 }
