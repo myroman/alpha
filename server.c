@@ -2,6 +2,8 @@
 #include	<time.h>
 #include "misc.h"
 
+void replyTs(int sockfd, SA *pcliaddr, socklen_t clilen);
+
 void sig_chld(int signo)
 {
 	pid_t	pid;
@@ -18,31 +20,36 @@ int main(int argc, char **argv)
 	int					listenfd, connfd;
 	socklen_t			clilen;
 	struct sockaddr_un	cliaddr, servaddr;
-	void				sig_chld(int);
-	char				buff[MAXLINE];
-	time_t				ticks;
+	void				sig_chld(int);	
 
-	listenfd = Socket(AF_LOCAL, SOCK_STREAM, 0);
+	listenfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
 
-	unlink(UNIXSTR_PATH);
+	unlink(UNIXDG_PATH);
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sun_family = AF_LOCAL;
-	strcpy(servaddr.sun_path, UNIXSTR_PATH);
+	strcpy(servaddr.sun_path, UNIXDG_PATH);
 
 	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
 
-	Listen(listenfd, LISTENQ);
-
 	Signal(SIGCHLD, sig_chld);
 
-	for ( ; ; ) {
-		clilen = sizeof(cliaddr);
-		connfd = Accept(listenfd, (SA *) &cliaddr, &clilen);
+	replyTs(listenfd, (SA *)&cliaddr, sizeof(cliaddr));
+}
 
+void replyTs(int sockfd, SA *pcliaddr, socklen_t clilen)
+{
+	int			n;
+	socklen_t	len;
+	char		mesg[MAXLINE];
+	char				buff[MAXLINE];
+	time_t				ticks;
+
+	for ( ; ; ) {
+		len = clilen;
+		n = Recvfrom(sockfd, mesg, MAXLINE, 0, pcliaddr, &len);
+		printf("Received request\n");
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-        Write(connfd, buff, strlen(buff));
-
-		Close(connfd);
+		Sendto(sockfd, buff, sizeof(buff), 0, pcliaddr, len);
 	}
 }
