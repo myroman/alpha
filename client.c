@@ -13,7 +13,7 @@ int main(int argc, char **argv)
 
 	bzero(&cliaddr, sizeof(cliaddr));
 	cliaddr.sun_family = AF_LOCAL;
-	strcpy(cliaddr.sun_path, tmpnam(NULL));
+	strcpy(cliaddr.sun_path, mkstemp(getUnique6()));
 	bind(sockfd, (SA *)&cliaddr, sizeof(cliaddr));
 
 	bzero(&servaddr, sizeof(servaddr));

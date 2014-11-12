@@ -12,5 +12,6 @@
 #define ETHFR_MAXDATA_LEN 1500
 
 void rmnl(char* s);
+char* getUnique6();
 
 #endif
