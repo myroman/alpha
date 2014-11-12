@@ -35,16 +35,15 @@ int msg_send(int sockfd, char* destIpAddr, int destPort, const char* msg, int fo
 		return -1;
 	}
 
+	//Serialization stage
+
 	char* serialized = malloc(ETHFR_MAXDATA_LEN);
 	char* ptrPaste = serialized;
-	char* tmp1 = itostr(sockfd);
 	char* tmp2 = itostr(destPort);	
 	char* tmp3 = itostr(forceRediscovery);	
 	char* mt = itostr(SEND_MSG_TYPE);/* ODR should know not only these args, but also type of request {send,recv} */
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, mt);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, tmp1);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
 	ptrPaste = addDlm(ptrPaste);
@@ -53,15 +52,17 @@ int msg_send(int sockfd, char* destIpAddr, int destPort, const char* msg, int fo
 	ptrPaste = cpyAndMovePtr(ptrPaste, msg);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, tmp3);
+
+	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
 	
-	free(tmp1);
 	free(tmp2);
 	free(tmp3);
 	free(mt);
 
 	printf("Serialized into byte array: %s\n", serialized);
 
-	return 0;
+	// Sending
+	return send(sockfd, serialized, strlen(serialized), 0);
 }
 
 int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {

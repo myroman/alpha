@@ -29,10 +29,10 @@ int main(int argc, char **argv)
 	char* s = malloc(ETHFR_MAXDATA_LEN);
 	strcpy(s, "Hi!\n");
 	rmnl(s);	
-	int forceRediscovery = 0;
+	int forceRediscovery = 0, res;
 
 	//TODO: how should I use forceRediscovery?
-	msg_send(sockfd, "192.168.123.123", DAYTIME_PORT, s, forceRediscovery);	
+	res = msg_send(sockfd, "192.168.123.123", DAYTIME_PORT, s, forceRediscovery);	
 
 	unlink(templateForTmp);
 	return;	
