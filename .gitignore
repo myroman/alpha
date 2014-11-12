@@ -3,6 +3,7 @@
 client
 server
 prhwaddrs
+odrProc
 Make.defines
 *.orig
 *.txt
