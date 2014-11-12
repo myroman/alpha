@@ -15,9 +15,9 @@ int main(int argc, char **argv)
 	cliaddr.sun_family = AF_LOCAL;
 	
 	char* templateForTmp = malloc(10);
-	strncpy(templateForTmp, getUnique6(), 6);
-	strncpy((templateForTmp+6), "roma", 4);
+	strncpy(templateForTmp, createTmplFilename(), 10);
 	mkstemp(templateForTmp);
+	printf("Hi %s\n", templateForTmp);
 	strcpy(cliaddr.sun_path, templateForTmp);
 
 	bind(sockfd, (SA *)&cliaddr, sizeof(cliaddr));
