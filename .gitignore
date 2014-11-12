@@ -2,7 +2,7 @@
 # Add here all binaries because we can't use wildcards to exclude them
 client
 server
-
+prhwaddrs
 Make.defines
 *.orig
 *.txt

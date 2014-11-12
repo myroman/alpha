@@ -1,5 +1,6 @@
 #include "unp.h"
 #include "misc.h"
+#include "oapi.h"
 
 int main(int argc, char **argv)
 {
@@ -18,15 +19,27 @@ int main(int argc, char **argv)
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sun_family = AF_LOCAL;
 	strcpy(servaddr.sun_path, UNIXDG_PATH);
+
+	char* s="Hello, World - test message!\n";
+	int forceRediscovery = 0;
+
+	//TODO: how should I use forceRediscovery?
+	msg_send(sockfd, NULL, DAYTIME_PORT, s, forceRediscovery);		
 	
-	char* s="";
-	sendto(sockfd, s, 0, 0, (SA*)&servaddr, sizeof(servaddr));
-	printf("Sent to %d\n", sockfd);
-	while ( (n = read(sockfd, recvline, MAXLINE)) > 0) {
+	printf("Requested time...\n");
+	char* destIpAddr;
+	int destPort;
+	while ((n = msg_recv(sockfd, recvline, destIpAddr, &destPort))) {
+		printf("Got a response, n = %d\n", n);
+		recvline[n] = 0;	
+		printf("Timestamp: %s", recvline);		
+	}
+
+	/*while ( (n = read(sockfd, recvline, MAXLINE)) > 0) {
 		recvline[n] = 0;	
 		if (fputs(recvline, stdout) == EOF)
 			err_sys("fputs error");
-	}
+	}*/
 	if (n < 0)
 		err_sys("read error");
 
