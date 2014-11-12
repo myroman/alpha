@@ -13,7 +13,13 @@ int main(int argc, char **argv)
 
 	bzero(&cliaddr, sizeof(cliaddr));
 	cliaddr.sun_family = AF_LOCAL;
-	strcpy(cliaddr.sun_path, mkstemp(getUnique6()));
+	
+	char* templateForTmp = malloc(10);
+	strncpy(templateForTmp, getUnique6(), 6);
+	strncpy((templateForTmp+6), "roma", 4);
+	mkstemp(templateForTmp);
+	strcpy(cliaddr.sun_path, templateForTmp);
+
 	bind(sockfd, (SA *)&cliaddr, sizeof(cliaddr));
 
 	bzero(&servaddr, sizeof(servaddr));
@@ -21,12 +27,14 @@ int main(int argc, char **argv)
 	strcpy(servaddr.sun_path, UNIXDG_PATH);
 
 	char* s = malloc(ETHFR_MAXDATA_LEN);
+	strcpy(s, "Hi!\n");
 	rmnl(s);	
 	int forceRediscovery = 0;
 
 	//TODO: how should I use forceRediscovery?
 	msg_send(sockfd, "192.168.123.123", DAYTIME_PORT, s, forceRediscovery);	
 
+	unlink(templateForTmp);
 	return;	
 	
 	printf("Requested time...\n");
@@ -46,5 +54,6 @@ int main(int argc, char **argv)
 	if (n < 0)
 		err_sys("read error");
 
+	unlink(templateForTmp);
 	exit(0);
 }
