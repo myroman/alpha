@@ -20,11 +20,14 @@ int main(int argc, char **argv)
 	servaddr.sun_family = AF_LOCAL;
 	strcpy(servaddr.sun_path, UNIXDG_PATH);
 
-	char* s="Hello, World - test message!\n";
+	char* s = malloc(ETHFR_MAXDATA_LEN);
+	rmnl(s);	
 	int forceRediscovery = 0;
 
 	//TODO: how should I use forceRediscovery?
-	msg_send(sockfd, NULL, DAYTIME_PORT, s, forceRediscovery);		
+	msg_send(sockfd, "192.168.123.123", DAYTIME_PORT, s, forceRediscovery);	
+
+	return;	
 	
 	printf("Requested time...\n");
 	char* destIpAddr;

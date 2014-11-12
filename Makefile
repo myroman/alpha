@@ -12,14 +12,16 @@ prhwaddrs.o: prhwaddrs.c
 get_ifi_info_plus.o: get_ifi_info_plus.c
 	${CC} ${CFLAGS} -c get_ifi_info_plus.c ${UNP}
 
-client: client.o oapi.o
-	${CC} ${FLAGS} -o $@ client.o oapi.o ${LIBS}
+client: client.o oapi.o misc.o
+	${CC} ${FLAGS} -o $@ client.o oapi.o misc.o ${LIBS}
 server: server.o oapi.o
 	${CC} ${FLAGS} -o $@ server.o oapi.o ${LIBS}
 oapi.o: oapi.c
 	${CC} ${FLAGS} -c oapi.c ${UNP}	
 test.o: test.c
 	${CC} ${FLAGS} -c test.c ${UNP}
+misc.o: misc.c
+	${CC} ${FLAGS} -c misc.c ${UNP}	
 odrProc: odrProc.o odrImpl.o
 	${CC} ${FLAGS} -o $@ odrProc.o odrImpl.o ${LIBS}
 odrImpl.o: odrImpl.c
