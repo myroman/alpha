@@ -13,6 +13,7 @@ void* respondToNetworkRequestsRoutine (void *arg);
 
 char* ut();
 char* nt();
+int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -58,9 +59,14 @@ void* respondToHostRequestsRoutine (void *arg) {
 		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SA *)&cliaddr, &addrlen);
 		printf("%s Got a request, length=%d\n",ut(),length);
 		
-		if (length == 31) {
+		//Parse string
+		SendDto* dto = malloc(sizeof(dto));
+		int res = deserializeApiReq(buffer, length, dto);
+		printf("%s Deser: msgtype=%d, destIp=%s\n", ut(), dto->msgType, dto->destIp);
+
+		if (dto->msgType == CLIENT_MSG_TYPE) {
 			printf("%s Got a msg from client, because length = 31. Sending odr msg\n", ut());	
-			odrSend(0, "127.0.0.1", 80, "odr message", 0, src_mac, dest_mac);
+			odrSend(dto, src_mac, dest_mac);
 		} else {
 			printf("Another ODR request: length=%d\n", length);
 		}
@@ -93,4 +99,39 @@ char* nt() {
 
 char* ut() {
 	return "Unix thread:";
+}
+
+int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
+	char* s = malloc(bufLen);
+	strcpy(s, buffer);
+
+	char *tok = NULL, *delim = "|";
+    int len = 0, member = 0;     
+ 	
+    tok = strtok(s, delim);
+	while (tok) {
+    	switch(member++){
+        	case 0:
+        		dto->msgType = atoi(tok);
+        		break;
+			case 1:
+				dto->destIp = malloc(strlen(tok));
+				strcpy(dto->destIp, tok);
+				break;
+			case 2:
+				dto->destPort = atoi(tok);
+				break;
+			case 3:
+				dto->msg = malloc(strlen(tok));
+				strcpy(dto->msg, tok);
+				break;
+			case 4:
+				dto->forceRedisc = atoi(tok);
+				break;
+			case 5:
+				dto->callbackFd = atoi(tok);
+				break;
+        }
+        tok = strtok(NULL, delim);
+    }    
 }

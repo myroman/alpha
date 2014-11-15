@@ -1,11 +1,12 @@
 #include "unp.h"
 #include "odrProc.h"
+#include "oapi.h"
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-int odrSend(int sockfd, char* destIpAddr, int destPort, const char* msg, int forceRediscovery, unsigned char srcMac[6], unsigned char destMac[6]) {	
+int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {	
 	struct sockaddr_ll socket_address;/*target address*/	
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*buffer for ethernet frame*/	
 	unsigned char* etherhead = buffer;/*pointer to ethenet header*/	
@@ -34,7 +35,7 @@ int odrSend(int sockfd, char* destIpAddr, int destPort, const char* msg, int for
 	memcpy((void*)(buffer+ETH_ALEN), (void*)srcMac, ETH_ALEN);
 	eh->h_proto = 0x00;
 	
-	strcpy(data, msg);
+	strcpy(data, dto->msg);
 
 	int sd;
 	//s = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));

@@ -50,11 +50,12 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	char* ptrPaste = serialized;
 	char* tmp2 = itostr(destPort);	
 	char* tmp3 = itostr(forceRediscovery);	
-	char* mt = itostr(SEND_MSG_TYPE);/* ODR should know not only these args, but also type of request {send,recv} */
+	char* msgType = itostr(CLIENT_MSG_TYPE);/* ODR should know not only these args, but also type of request {send,recv} */
 	char* cbfd = itostr(callbackFd);
 
-	ptrPaste = cpyAndMovePtr(ptrPaste, mt);
+	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
 	ptrPaste = addDlm(ptrPaste);
+	printf("len of ip:%d\n",strlen(destIpAddr));
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, tmp2);
@@ -70,7 +71,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	free(cbfd);
 	free(tmp2);
 	free(tmp3);
-	free(mt);
+	free(msgType);
 
 	printf("Serialized into byte array: %s\n", serialized);
 

@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	rmnl(s);	
 	int forceRediscovery = 0, res;
 
-	res = msg_send(lstFd, "192.168.123.123", DAYTIME_PORT, s, forceRediscovery);	
+	res = msg_send(lstFd, "192.168.123.123\0", DAYTIME_PORT, s, forceRediscovery);	
 
 	unlink(listenFn);
 	

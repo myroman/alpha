@@ -3,7 +3,7 @@
 
 #define DAYTIME_PORT 51234
 
-#define SEND_MSG_TYPE 0
+#define CLIENT_MSG_TYPE 0
 #define RECV_MSG_TYPE 1
 
 //Ethernet frame positions
