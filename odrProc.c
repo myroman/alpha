@@ -15,6 +15,8 @@ char* ut();
 char* nt();
 int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
 
+struct sockaddr_un servaddr;
+
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
 //00:0c:29:d9:08:ec vm2
@@ -26,10 +28,14 @@ Then call a function from odrImpl.c
 2) When you get a response from ODR, serialize it and send back to the needed socket	*/
 int main(int argc, char **argv) {
 	
-	int listenfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
+	int unixDomainFd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
+	unlink(UNIXDG_PATH);
+	servaddr = createSA(UNIXDG_PATH);	
+	Bind(unixDomainFd, (SA *) &servaddr, sizeof(servaddr));	
+
 	pthread_t unixDmnListener, networkListener;
-	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*) listenfd);
-	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, NULL);
+	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*)unixDomainFd);
+	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
 
 	pthread_join(unixDmnListener, NULL);
 	pthread_join(networkListener, NULL);	
@@ -45,18 +51,13 @@ void* respondToHostRequestsRoutine (void *arg) {
 
 	socklen_t clilen;
 	
-	struct sockaddr_un servaddr,cliaddr;// = createSA(UNIXDG_PATH);
 	int listenfd = (int)arg;	
-	unlink(UNIXDG_PATH);
-	servaddr = createSA(UNIXDG_PATH);
-	
-	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
 	char* buffer = malloc(MAXLINE);
+	struct sockaddr_un cliaddr;
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), listenfd);
-		int addrlen = sizeof(cliaddr);
-
-		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SA *)&cliaddr, &addrlen);
+		int l = sizeof(cliaddr);
+		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SA *)&cliaddr, &l);
 		printf("%s Got a request, length=%d\n",ut(),length);
 		
 		//Parse string
@@ -65,7 +66,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		printf("%s Deser: msgtype=%d, destIp=%s\n", ut(), dto->msgType, dto->destIp);
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
-			printf("%s Got a msg from client, because length = 31. Sending odr msg\n", ut());	
+			printf("%s Got a msg from client. Sending msg %s\n", ut(), dto->msg);
 			odrSend(dto, src_mac, dest_mac);
 		} else {
 			printf("Another ODR request: length=%d\n", length);
@@ -76,7 +77,9 @@ void* respondToHostRequestsRoutine (void *arg) {
 }
 
 void* respondToNetworkRequestsRoutine (void *arg) {
-	int sockfd, srcPort;
+	int sockfd, 
+		srcPort, 
+		unixDomainFd = (int)arg;
 	char* msg = malloc(MAXLINE); //TODO: or MAX ETHERNET LENGTH?
 	char* srcIpAddr = malloc(15);
 	
@@ -84,11 +87,12 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	    printf("%s Socket failed ", nt());
 	    exit (EXIT_FAILURE);
 	}
-
+	
 	for(;;) {
 		printf("%s waiting for PF_PACKET...\n", nt());
 		int n = odrRecv(sockfd, msg, srcIpAddr, &srcPort);
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), msg, srcIpAddr, srcPort);
+		sendto(unixDomainFd, msg, strlen(msg), 0, (SA *)&servaddr, sizeof(servaddr));
 		return;		
 	}
 }
@@ -134,4 +138,6 @@ int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
         }
         tok = strtok(NULL, delim);
     }    
+
+    return 1;
 }
