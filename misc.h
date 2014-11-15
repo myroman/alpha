@@ -13,5 +13,4 @@
 
 void rmnl(char* s);
 char* createTmplFilename();
-
 #endif

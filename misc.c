@@ -1,3 +1,6 @@
+#include "unp.h"
+#include "misc.h"
+
 void rmnl(char* s) {
 	int ln = strlen(s) - 1;
 	if (s[ln] == '\n')

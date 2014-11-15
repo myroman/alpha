@@ -43,6 +43,7 @@ int odrSend(int sockfd, char* destIpAddr, int destPort, const char* msg, int for
 	    exit (EXIT_FAILURE);
 	}
 	/*send the packet*/
+	printf("ODR:sendto PF_PACKET %d\n", sd);
 	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SA*)&socket_address, sizeof(socket_address));
 	if (send_result == -1) { 
 		printf("send result == -1\n");
