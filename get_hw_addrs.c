@@ -65,7 +65,6 @@ get_hw_addrs()
 		if (ioctl(sockfd, SIOCGIFHWADDR, &ifrcopy) < 0)
                           perror("SIOCGIFHWADDR");	/* get hw address */
 		memcpy(hwa->if_haddr, ifrcopy.ifr_hwaddr.sa_data, IF_HADDR);
-		
 		if (ioctl(sockfd, SIOCGIFINDEX, &ifrcopy) < 0)
                           perror("SIOCGIFINDEX");	/* get interface index */
 		memcpy(&hwa->if_index, &ifrcopy.ifr_ifindex, sizeof(int));
