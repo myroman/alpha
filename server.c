@@ -6,18 +6,12 @@
 void replyTs(int sockfd, SA *pcliaddr, socklen_t clilen);
 
 int main(int argc, char **argv)
-{
-	int listenfd, sd;
-	socklen_t clilen;
-	struct sockaddr_un cliaddr, servaddr;
-
-	listenfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
-	unlink(UNIXDG_PATH);
-	printf("here\n");
-	servaddr = createSA(UNIXDG_PATH);	
-	printf("here\n");
-	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
-	printf("here\n");
+{	
+	int listenfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
+	unlink(SRV_UNIX_PATH);
+	SockAddrUn servaddr = createSockAddrUn(SRV_UNIX_PATH);
+	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));	
+	SockAddrUn cliaddr;
 	replyTs(listenfd, (SA *)&cliaddr, sizeof(cliaddr));
 }
 
