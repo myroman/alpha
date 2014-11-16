@@ -1,6 +1,6 @@
 include Make.defines
 
-all: client server test get_hw_addrs.o prhwaddrs.o odrProc
+all: client server test get_hw_addrs.o prhwaddrs.o odrProc routingTable
 	${CC} -o prhwaddrs prhwaddrs.o get_hw_addrs.o ${LIBS}
 
 get_hw_addrs.o: get_hw_addrs.c
@@ -30,5 +30,12 @@ odrImpl.o: odrImpl.c
 
 test: test.o
 	${CC} ${FLAGS} -o $@ test.o ${LIBS}
+
+routingTable.o: routingTable.c
+	${CC} ${FLAGS} -c routingTable.c ${UNP}
+routingTable: routingTable.o
+	${CC} ${FLAGS} -o $@ routingTable.o ${LIBS}
+
+
 clean:
-	rm *.o client server test odrProc
+	rm *.o client server test odrProc routingTable
