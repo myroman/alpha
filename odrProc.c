@@ -9,15 +9,6 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-void* respondToHostRequestsRoutine (void *arg);
-
-void* respondToNetworkRequestsRoutine (void *arg);
-
-char* ut();
-char* nt();
-int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
-void fillInterfaces();
-
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;

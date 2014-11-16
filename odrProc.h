@@ -13,6 +13,13 @@ struct frameUserData {
 };
 typedef struct frameUserData FrameUserData;
 // odrProc.c
+void* respondToHostRequestsRoutine (void *arg);
+void* respondToNetworkRequestsRoutine (void *arg);
+char* ut();
+char* nt();
+int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
+void fillInterfaces();
+
 int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]);
 int odrRecv(int sockfd, FrameUserData* userData);
 int addCurrentNodeAddressAsSource(SendDto* dto);
