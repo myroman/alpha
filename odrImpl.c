@@ -59,6 +59,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 		printf("send result == -1\n");
 		return 1;
 	}
+	printf("send res=%d\n", send_result);
 }
 
 int odrRecv(int sockfd, FrameUserData* userData) {
@@ -83,6 +84,7 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	debug("ODR: Raw data:%s", rawUserData);
 	deserialFrameUdata(rawUserData, userData);
 	char* srcMac = (char*)(buffer + ETH_ALEN);
+
 	return 1;
 }
 

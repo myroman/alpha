@@ -13,12 +13,12 @@ char* createTmplFilename(){
 	s[0]='r';
 	s[1]='O';
 	s[2]='m';
-	s[3]='A';
+	s[3]='X';
 	s[4]='X';
 	s[5]='X';
 	s[6]='X';
 	s[7]='X';
 	s[8]='X';
-	s[9]='X';
+	s[9]='\0';
 	return s;
 }
