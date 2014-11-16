@@ -15,7 +15,7 @@
 int main () {
 	printf("Hello, world!\n");
 	int i =100;
-	debug("%d", i);
+	debug("%d %s", i, "asdfaasdf");
 	info("Tesing info msg");
 	return EXIT_SUCCESS;
 }
