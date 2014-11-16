@@ -20,6 +20,8 @@ void fillInterfaces();
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
+//TODO: use prhwaddrs to use arbitrary MAC	
+unsigned char roman_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*our MAC address*/		
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -43,7 +45,7 @@ int main(int argc, char **argv) {
 	
 	printf("*** List of interfaces ***\n");
 	for(;ptr != NULL;ptr = ptr->next) {
-		printf("Interface #%d, HW_addr:", ptr->interfaceIndex, ptr->macAddress);
+		printf("Interface #%d, IP:%s, HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->macAddress);
 		int i=0;
 		for(i=0;i<6;++i) {
 			printf("%.2x:", ptr->macAddress[i]);
@@ -63,34 +65,29 @@ int main(int argc, char **argv) {
 }
 
 void* respondToHostRequestsRoutine (void *arg) {
-	//TODO: use prhwaddrs to use arbitrary MAC	
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*our MAC address*/	
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*other host MAC address*/
-
 	socklen_t clilen;
 	
 	int unixDomainFd = (int)arg;	
 	char* buffer = malloc(MAXLINE);
-	SockAddrUn cliaddr;
+	SockAddrUn senderAddr;
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
-		int l = sizeof(cliaddr);
-		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SockAddrUn *)&cliaddr, &l);
-		printf("%s Got a request from client filepath=%s\n",ut(), cliaddr.sun_path);						
-		
+		int l = sizeof(senderAddr);
+		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SockAddrUn *)&senderAddr, &l);
+
 		//Parse string
 		SendDto* dto = malloc(sizeof(dto));
 		int res = deserializeApiReq(buffer, length, dto);		
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
-			strcpy(callbackClientName, cliaddr.sun_path);
-			
-			printf("%s Got a msg from client. Sending msg %s\n", ut(), dto->msg);
-			odrSend(dto, src_mac, dest_mac);
+			strcpy(callbackClientName, senderAddr.sun_path);
+
+			printf("%s Got a msg from client (filepath=%s)\n", ut(), senderAddr.sun_path);
+			odrSend(dto, roman_mac, roman_mac);
 		} else {
-			printf("Another ODR request: length=%d\n", length);
+			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), dto->msg, senderAddr.sun_path);
 			//src_mac and dest mac should be used in another way!
-			odrSend(dto, src_mac, dest_mac);
+			odrSend(dto, roman_mac, roman_mac);
 		}
 	}	
 
@@ -101,7 +98,6 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	int sockfd, 
 		srcPort, 
 		unixDomainFd = (int)arg;
-	char* msg = malloc(MAXLINE); //TODO: or MAX ETHERNET LENGTH?
 	char* srcIpAddr = malloc(15);
 	SockAddrUn appAddr;
 	
@@ -117,27 +113,36 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->ipAddr, userData->portNumber);
 
-		// check if it is request to server
-		printf("%s Port number:%d\n", nt(), userData->portNumber);
-		if (userData->portNumber == SRV_PORT_NUMBER) {
-			appAddr = createSockAddrUn(SRV_UNIX_PATH);
-			printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
-			int x = sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
-			printf("result = %d\n", x);
+		// compare dest IP from request and the node's current IP
+		int atDestination = atDestination = (strcmp(ifHead->ipAddr, userData->ipAddr) == 0);
+		if (atDestination == 0) {
+			printf("%s We're at intermediate node with IP=%s", nt(), userData->ipAddr);
+			odrSend(userData, roman_mac, roman_mac);
 		} else {
-			if (callbackClientName != NULL) {
-				appAddr = createSockAddrUn(callbackClientName);			
-				printf("%s Sending to a client Unix file %s\n", nt(), appAddr.sun_path);
-				sendto(unixDomainFd, msg, strlen(msg), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
-			} else{
-				printf("Callback filename for client is NULL\n");
+			printf("%s We're at dest node with IP=%s\n", nt(), userData->ipAddr);
+		
+			// check if it is request to server
+			printf("%s Port number:%d\n", nt(), userData->portNumber);
+			if (userData->portNumber == SRV_PORT_NUMBER) {
+				appAddr = createSockAddrUn(SRV_UNIX_PATH);
+				printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
+				int x = sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
+				printf("Sent result = %d\n", x);
+			} else {
+				if (callbackClientName != NULL) {
+					appAddr = createSockAddrUn(callbackClientName);			
+					printf("%s Sending to a client Unix file %s, %s\n", nt(), appAddr.sun_path, userData->msg);
+					sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
+				} else{
+					printf("Callback filename for client is NULL\n");
+				}
 			}
 		}
+		//TODO: remove later. added to avoid too much cycles if sth works wrong
 		if (z++ == 4) {
 			printf("Exit\n");
 			return;
-		}
-		
+		}		
 	}
 }
 
@@ -223,6 +228,9 @@ void fillInterfaces() {
 			niPtr->next = malloc(sizeof(NetworkInterface));
 			niPtr = niPtr->next;
 		}
+
+		niPtr->ipAddr = malloc(IP_ADDR_LEN);
+		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
 
 		if (prflag) {
 //			printf("         HW addr = ");

@@ -33,7 +33,7 @@ int main(int argc, char **argv)
 	rmnl(s);	
 	int forceRediscovery = 0, res;
 
-	res = msg_send(lstFd, "192.168.123.123\0", SRV_PORT_NUMBER, s, forceRediscovery);
+	res = msg_send(lstFd, "10.0.2.15\0", SRV_PORT_NUMBER, s, forceRediscovery);
 
 	//return;
 	printf("Requested time...\n");
@@ -41,7 +41,8 @@ int main(int argc, char **argv)
 	int destPort;
 	while ((n = msg_recv(lstFd, timestamp, destIpAddr, &destPort))) {
 	printf("asdf\n");
-		printf("Timestamp: %d", timestamp);
+		printf("Timestamp: %s", timestamp);
+		return;
 		sleep(2);
 	}
 	

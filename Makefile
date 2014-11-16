@@ -14,8 +14,8 @@ get_ifi_info_plus.o: get_ifi_info_plus.c
 
 client: client.o oapi.o misc.o
 	${CC} ${FLAGS} -o $@ client.o oapi.o misc.o ${LIBS}
-server: server.o oapi.o
-	${CC} ${FLAGS} -o $@ server.o oapi.o ${LIBS}
+server: server.o oapi.o misc.o
+	${CC} ${FLAGS} -o $@ server.o oapi.o misc.o ${LIBS}
 oapi.o: oapi.c
 	${CC} ${FLAGS} -c oapi.c ${UNP}	
 test.o: test.c

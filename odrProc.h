@@ -18,6 +18,7 @@ typedef struct networkInterface NetworkInterface;
 struct networkInterface {
 	unsigned char macAddress[IF_HADDR];
 	int interfaceIndex;
+	char* ipAddr;
 	NetworkInterface* next;
 };
 
