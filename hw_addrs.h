@@ -1,4 +1,6 @@
 /* Our own header for the programs that need hardware address info. */
+#ifndef __hw_addrs_h
+#define __hw_addrs_h
 
 #include <stdio.h>
 #include <sys/socket.h>
@@ -23,3 +25,4 @@ struct hwa_info	*get_hw_addrs();
 struct hwa_info	*Get_hw_addrs();
 void	free_hwa_info(struct hwa_info *);
 
+#endif
