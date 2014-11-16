@@ -57,7 +57,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 		msgType = itostr(SRV_MSG_TYPE);
 	}
 	char* cbfd = itostr(callbackFd);
-
+	
 	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
@@ -70,7 +70,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, cbfd);
 	ptrPaste = addDlm(ptrPaste);
-
+	
 	SockAddrUn mysa;
 	socklen_t l = sizeof(mysa);
 	bzero(&mysa, l);
@@ -80,16 +80,13 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	ptrPaste = cpyAndMovePtr(ptrPaste, mysa.sun_path);
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
-	
 	free(cbfd);
 	free(tmp2);
 	free(tmp3);
 	free(msgType);
-
 	printf("Serialized into byte array: %s\n", serialized);
 	
 	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
-	//printf("Send to %d len %d\n", callbackFd, strlen(serialized));	
 	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
 	return 0;
 }

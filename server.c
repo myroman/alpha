@@ -28,11 +28,10 @@ void replyTs(int sockfd)
 		int n = msg_recv(sockfd, msg, srcIpAddr, &srcPort);
 		printf("Received msg:%s from %s:%d\n", msg, srcIpAddr, srcPort);
         ticks = time(NULL);
-        snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-        //rmnl(buff);
-
+        snprintf(buff, sizeof(buff), "%.24s\0", ctime(&ticks));
+        
         printf("Sending %s\n", buff);        
-		msg_send(sockfd, "172.23.11.2", 42135, buff, forceRediscovery);
+		msg_send(sockfd, "172.23.11.2\0", 42135, buff, forceRediscovery);
 	}
 
 	free(msg);
