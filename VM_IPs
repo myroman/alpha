@@ -1,0 +1,67 @@
+VM1
+=============
+IP address for eth0: 130.245.156.21
+IP address for eth1: 192.168.10.1
+IP address for eth2: 192.168.12.1
+
+VM2
+=============
+IP address for eth0: 130.245.156.22
+IP address for eth1: 192.168.10.2
+
+
+VM3
+=============
+IP address for eth0: 130.245.156.23
+IP address for eth1: 192.168.10.3
+IP address for eth2: 192.168.11.3
+
+
+VM4
+=============
+IP address for eth0: 130.245.156.24
+IP address for eth1: 192.168.11.4
+IP address for eth2: 192.168.12.4
+
+
+VM5
+=============
+IP address for eth0: 130.245.156.25
+IP address for eth1: 192.168.11.5
+
+
+VM6
+=============
+IP address for eth0: 130.245.156.26
+IP address for eth1: 192.168.11.6
+IP address for eth2: 192.168.14.6
+
+
+VM7
+=============
+IP address for eth0: 130.245.156.27
+IP address for eth1: 192.168.12.7
+
+
+
+VM8
+=============
+IP address for eth0: 130.245.156.28
+IP address for eth1: 192.168.12.8
+
+
+VM9
+=============
+IP address for eth0: 130.245.156.29
+IP address for eth1: 192.168.13.9
+IP address for eth2: 192.168.14.9
+
+
+VM10
+=============
+IP address for eth0: 130.245.156.20
+IP address for eth1: 192.168.13.10
+
+
+
+ssh cse533-13@minix.cs.stonybrook.edu
