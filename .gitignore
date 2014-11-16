@@ -6,5 +6,6 @@ prhwaddrs
 odrProc
 Make.defines
 routingTable
+portPath
 *.orig
 *.txt

@@ -1,20 +1,7 @@
 #include "unp.h"
 #include <sys/time.h>
 #include "debug.h"
-
-#define	IF_NAME		16	/* same as IFNAMSIZ    in <net/if.h> */
-#define	IF_HADDR	 30	/* same as IFHWADDRLEN in <net/if.h> */
-#define ROUTING_ENTRY_STALE 2
-
-typedef struct RouteEntry RouteEntry;//typeDef for the Clinet Info object
-struct RouteEntry{
-	char dest_ip [IF_NAME];
-	char next_hop [IF_HADDR];	/* hardware address */
-	int hop_count;
-	struct timeval entryTime;
-    RouteEntry *right;
-    RouteEntry *left;
-};
+#include "routingTable.h"
 
 RouteEntry *headEntry = NULL;
 RouteEntry *tailEntry = NULL;
