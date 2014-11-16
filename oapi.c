@@ -95,13 +95,29 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 }
 
 int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
-	char* buf = malloc(ETH_MAX_MSG_LEN);
-	int length = recvfrom(sockfd, buf, ETH_MAX_MSG_LEN, 0, NULL, NULL);
-	if (length == -1) { 
-		printf("%s\n", "Length=-1");
-		return -1;
-	}
-	strcpy(msg, buf);
+	
+	fd_set set;
+	int maxfd;
+	struct timeval tv;
+	for(;;){
+		tv.tv_sec = 5;
+		tv.tv_usec = 0;
+		FD_ZERO(&set);
+		FD_SET(sockfd, &set);
+		maxfd = sockfd+1;
+		select(maxfd, &set, NULL, NULL, &tv);
+		if(FD_ISSET(sockfd, &set)){
+			char* buf = malloc(ETH_MAX_MSG_LEN);
+			int length = recvfrom(sockfd, buf, ETH_MAX_MSG_LEN, 0, NULL, NULL);
+			if (length == -1) { 
+				printf("%s\n", "Length=-1");
+				return -1;
+			}
+			strcpy(msg, buf);
 
-	printf("Got message\n");
+			printf("Got message\n");
+		}
+		return -1;//timeout
+	}
+	
 }

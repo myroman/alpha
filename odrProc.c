@@ -55,10 +55,10 @@ int main(int argc, char **argv) {
 
 	pthread_t unixDmnListener, networkListener;
 	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*)unixDomainFd);
-	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
+	//pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
 
 	pthread_join(unixDmnListener, NULL);
-	pthread_join(networkListener, NULL);	
+	//pthread_join(networkListener, NULL);	
 	
 	unlink(ODR_UNIX_PATH);
 	printf("ODR terminated\n");
