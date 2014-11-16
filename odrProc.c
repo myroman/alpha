@@ -1,4 +1,5 @@
 #include "unp.h"
+#include "debug.h"
 #include "oapi.h"
 #include "odrProc.h"
 #include "misc.h"
@@ -78,9 +79,8 @@ void* respondToHostRequestsRoutine (void *arg) {
 		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SockAddrUn *)&senderAddr, &l);
 
 		//Parse string
-		SendDto* dto = malloc(sizeof(dto));
+		SendDto* dto = malloc(sizeof(SendDto));
 		int res = deserializeApiReq(buffer, length, dto);		
-
 		if (addCurrentNodeAddressAsSource(dto) == 0) {
 			continue;
 		}
@@ -104,17 +104,22 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	int sockfd, 
 		srcPort, 
 		unixDomainFd = (int)arg;
-	char* srcIpAddr = malloc(15);
 	
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    printf("%s Socket failed ", nt());
 	    exit (EXIT_FAILURE);
 	}
-	int z = 0;
+	int z = 0, n = 1;
 	for(;;) {
-		printf("%s waiting for PF_PACKET...\n", nt());
+		if (n != 0) {
+			printf("%s waiting for PF_PACKET...\n", nt());
+		}
 		FrameUserData* userData = malloc(sizeof(FrameUserData));
-		int n = odrRecv(sockfd, userData);
+		n = odrRecv(sockfd, userData);
+		if (n == 0) {
+
+			//continue;
+		}
 		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber);
 
@@ -157,7 +162,6 @@ int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
         		dto->msgType = atoi(tok);
         		break;
 			case 1:
-				dto->destIp = malloc(strlen(tok));
 				strcpy(dto->destIp, tok);
 				break;
 			case 2:
@@ -215,7 +219,6 @@ void fillInterfaces() {
 			niPtr->isEth0 = 1;
 		}
 
-		niPtr->ipAddr = malloc(IP_ADDR_LEN);
 		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
 
 		if (prflag) {
@@ -262,7 +265,6 @@ int addCurrentNodeAddressAsSource(SendDto* dto) {
 		printf("%s Error: client node doesn't have eth0\n", ut());
 		return 0;
 	}
-	dto->srcIp = malloc(IP_ADDR_LEN);
 	strcpy(dto->srcIp, nodeIf->ipAddr);	
 	dto->srcPort = newClientPortNumber++;
 	

@@ -13,13 +13,13 @@ char* addDlm(char* destPtr);
 
 // SERIALIZED MSG_SEND STRING: MSG_TYPE|DESTIP|DESTPORT|MSG|FORCEREDISCOVERY|CALLBACKFD
 struct sendDto {
-	int msgType;
-	char* destIp;
+	int msgType;	
+	char srcIp[IP_ADDR_LEN];
+	int srcPort;
+	char destIp[IP_ADDR_LEN];
 	int destPort;	
 	char* msg;
 	int forceRedisc;
-	char* srcIp;
-	int srcPort;
 }; 
 typedef struct sendDto SendDto;
 #endif

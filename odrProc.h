@@ -5,10 +5,10 @@
 #include "hw_addrs.h"
 
 struct frameUserData {
-	char* ipAddr;
+	char ipAddr[IP_ADDR_LEN];
 	int portNumber;
 	char* msg;
-	char* srcIpAddr;
+	char srcIpAddr[IP_ADDR_LEN];
 	int srcPortNumber;
 };
 typedef struct frameUserData FrameUserData;
@@ -22,7 +22,7 @@ typedef struct networkInterface NetworkInterface;
 struct networkInterface {
 	unsigned char macAddress[IF_HADDR];
 	int interfaceIndex;
-	char* ipAddr;
+	char ipAddr[IP_ADDR_LEN];
 	int isEth0;
 	NetworkInterface* next;
 };

@@ -1,4 +1,5 @@
 #include "unp.h"
+#include "debug.h"
 #include "odrProc.h"
 #include "oapi.h"
 #include <sys/socket.h>
@@ -37,12 +38,11 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 	// copy SendDto to FrameUserData
 	FrameUserData frameUserData;
 	frameUserData.portNumber = dto->destPort;
-	frameUserData.ipAddr = malloc(IP_ADDR_LEN);
 	strcpy(frameUserData.ipAddr, dto->destIp);
 	
 	frameUserData.srcPortNumber = dto->srcPort;
-	frameUserData.srcIpAddr = malloc(IP_ADDR_LEN);
 	strcpy(frameUserData.srcIpAddr, dto->srcIp);
+
 	frameUserData.msg = malloc(ETH_MAX_MSG_LEN);
 	strcpy(frameUserData.msg, dto->msg);
 
@@ -53,7 +53,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 	    exit (EXIT_FAILURE);
 	}
 	/*send the packet*/
-	printf("ODR:sendto PF_PACKET %d\n", sd);
+	printf("ODR:sending PF_PACKET with data %s\n", data);
 	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&socket_address, sizeof(socket_address));
 	if (send_result == -1) { 
 		printf("send result == -1\n");
@@ -70,18 +70,20 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
-		return;
-	} 
-
+		return 0;
+	}
+	if (senderAddr.sll_protocol != 52457) {
+		//return 0;
+	}
+	
 	// extract msg, IP, etc	
 	char* rawUserData = malloc(length);
 	strcpy(rawUserData, (char*)(buffer + 14));
-	printf("hey\n");printf("hey\n");
-	printf("Raw:%s\n", rawUserData);
+	
+	debug("ODR: Raw data:%s", rawUserData);
 	deserialFrameUdata(rawUserData, userData);
-
-	printf("ODR: Received msg = %s\n", userData->msg);
 	char* srcMac = (char*)(buffer + ETH_ALEN);
+	return 1;
 }
 
 void serialFrameUdata(FrameUserData dto, unsigned char* out) {
@@ -108,14 +110,12 @@ void deserialFrameUdata(char* src, FrameUserData* out) {
 		switch(member++) {
 			printf("Member #%d=%s", member, ptr);
 			case 0:
-				out->srcIpAddr = malloc(IP_ADDR_LEN);
 				strcpy(out->srcIpAddr, ptr);
 				break;
 			case 1:
 				out->srcPortNumber = atoi(ptr);
 				break;
 			case 2:
-				out->ipAddr = malloc(IP_ADDR_LEN);
 				strcpy(out->ipAddr, ptr);
 				break;
 			case 3:
