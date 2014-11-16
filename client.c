@@ -23,9 +23,9 @@ int main(int argc, char **argv)
 	listenFn = malloc(10);
 	strncpy(listenFn, createTmplFilename(), 10);
 	mkstemp(listenFn);
+	unlink(listenFn); //don't remove it. It helps to resolve filename later.
 
 	SockAddrUn addr = createSockAddrUn(listenFn);
-
 	bind(lstFd, (SockAddrUn *)&addr, sizeof(addr));
 	
 	char* s = malloc(ETHFR_MAXDATA_LEN);

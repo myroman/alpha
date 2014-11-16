@@ -72,7 +72,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	SockAddrUn mysa;
 	socklen_t l = sizeof(mysa);
 	bzero(&mysa, l);
-	Getsockname(callbackFd, (SA *)&mysa, &l);
+	Getsockname(callbackFd, (SockAddrUn *)&mysa, &l);
 	printf("Filepath bound to fd %d is %s\n", callbackFd, mysa.sun_path);	
 	
 	ptrPaste = cpyAndMovePtr(ptrPaste, mysa.sun_path);
