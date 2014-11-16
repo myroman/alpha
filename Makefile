@@ -23,7 +23,7 @@ test.o: test.c
 misc.o: misc.c
 	${CC} ${FLAGS} -c misc.c ${UNP}	
 odrProc: odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o
-	${CC} ${FLAGS} -o $@ odrProc.o odrImpl.o oapi.o get_hw_addrs.o ${LIBS}
+	${CC} ${FLAGS} -o $@ odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o ${LIBS}
 odrImpl.o: odrImpl.c
 	${CC} ${FLAGS} -c odrImpl.c ${UNP}
 

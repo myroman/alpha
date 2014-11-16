@@ -69,25 +69,28 @@ void* respondToHostRequestsRoutine (void *arg) {
 
 	socklen_t clilen;
 	
-	int listenfd = (int)arg;	
+	int unixDomainFd = (int)arg;	
 	char* buffer = malloc(MAXLINE);
 	SockAddrUn cliaddr;
 	for(;;) {
-		printf("%s Waiting from %d...\n", ut(), listenfd);
+		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
 		int l = sizeof(cliaddr);
-		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SockAddrUn *)&cliaddr, &l);
-		printf("%s Got a request from client filepath=%s\n",ut(), cliaddr.sun_path);				
-		strcpy(callbackClientName, cliaddr.sun_path);
+		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SockAddrUn *)&cliaddr, &l);
+		printf("%s Got a request from client filepath=%s\n",ut(), cliaddr.sun_path);						
 		
 		//Parse string
 		SendDto* dto = malloc(sizeof(dto));
 		int res = deserializeApiReq(buffer, length, dto);		
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
+			strcpy(callbackClientName, cliaddr.sun_path);
+			
 			printf("%s Got a msg from client. Sending msg %s\n", ut(), dto->msg);
 			odrSend(dto, src_mac, dest_mac);
 		} else {
 			printf("Another ODR request: length=%d\n", length);
+			//src_mac and dest mac should be used in another way!
+			odrSend(dto, src_mac, dest_mac);
 		}
 	}	
 
@@ -100,26 +103,41 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		unixDomainFd = (int)arg;
 	char* msg = malloc(MAXLINE); //TODO: or MAX ETHERNET LENGTH?
 	char* srcIpAddr = malloc(15);
-	SockAddrUn callbackAddr;
+	SockAddrUn appAddr;
 	
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    printf("%s Socket failed ", nt());
 	    exit (EXIT_FAILURE);
 	}
-	
+	int z = 0;
 	for(;;) {
 		printf("%s waiting for PF_PACKET...\n", nt());
-		int n = odrRecv(sockfd, msg, srcIpAddr, &srcPort);
+		FrameUserData* userData = malloc(sizeof(FrameUserData));
+		int n = odrRecv(sockfd, userData);
 		// find out if it's from client or from server
-		printf("%s got a message: %s from IP %s, port %d \n", nt(), msg, srcIpAddr, srcPort);
+		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->ipAddr, userData->portNumber);
 
-		if (callbackClientName != NULL) {
-			callbackAddr = createSockAddrUn(callbackClientName);			
-			printf("%s Sending to a client Unix file %s\n", nt(), callbackAddr.sun_path);
-			sendto(unixDomainFd, msg, strlen(msg), 0, (SockAddrUn *)&callbackAddr, sizeof(callbackAddr));
-		} else{
-			printf("Callback filename for client is NULL\n");
+		// check if it is request to server
+		printf("%s Port number:%d\n", nt(), userData->portNumber);
+		if (userData->portNumber == SRV_PORT_NUMBER) {
+			appAddr = createSockAddrUn(SRV_UNIX_PATH);
+			printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
+			int x = sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
+			printf("result = %d\n", x);
+		} else {
+			if (callbackClientName != NULL) {
+				appAddr = createSockAddrUn(callbackClientName);			
+				printf("%s Sending to a client Unix file %s\n", nt(), appAddr.sun_path);
+				sendto(unixDomainFd, msg, strlen(msg), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
+			} else{
+				printf("Callback filename for client is NULL\n");
+			}
 		}
+		if (z++ == 4) {
+			printf("Exit\n");
+			return;
+		}
+		
 	}
 }
 

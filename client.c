@@ -14,7 +14,7 @@ int main(int argc, char **argv)
 {
 	int	lstFd, n;
 	socklen_t len;
-	char recvline[MAXLINE + 1];
+	
 	if ( (lstFd = socket(AF_LOCAL, SOCK_DGRAM, 0)) < 0)
 		err_sys("socket error");
 	Signal(SIGINT, sig_int);
@@ -37,13 +37,12 @@ int main(int argc, char **argv)
 
 	//return;
 	printf("Requested time...\n");
-	char* destIpAddr;
+	char* destIpAddr, *timestamp = malloc(ETH_MAX_MSG_LEN);
 	int destPort;
-	while ((n = msg_recv(lstFd, recvline, destIpAddr, &destPort))) {
-		printf("Got a response, n = %d\n", n);
-		recvline[n-1] = 0;	
-		printf("hey");
-		printf("Timestamp: %s", recvline);		
+	while ((n = msg_recv(lstFd, timestamp, destIpAddr, &destPort))) {
+	printf("asdf\n");
+		printf("Timestamp: %d", timestamp);
+		sleep(2);
 	}
 	
 	if (n < 0)

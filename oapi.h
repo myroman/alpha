@@ -8,6 +8,9 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort);
 
 SockAddrUn createSockAddrUn(const char* filename);
 
+char* cpyAndMovePtr(char* destPtr, const char* src);
+char* addDlm(char* destPtr);
+
 // SERIALIZED MSG_SEND STRING: MSG_TYPE|DESTIP|DESTPORT|MSG|FORCEREDISCOVERY|CALLBACKFD
 struct sendDto {
 	int msgType;

@@ -50,14 +50,16 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	char* ptrPaste = serialized;
 	char* tmp2 = itostr(destPort);	
 	char* tmp3 = itostr(forceRediscovery);	
-	char* msgType = itostr(CLIENT_MSG_TYPE);/* ODR should know not only these args, but also type of request {send,recv} */
+	char* msgType;
+	if (destPort == SRV_PORT_NUMBER) {
+		msgType = itostr(CLIENT_MSG_TYPE);
+	} else {
+		msgType = itostr(SRV_MSG_TYPE);
+	}
 	char* cbfd = itostr(callbackFd);
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
 	ptrPaste = addDlm(ptrPaste);
-
-
-	printf("len of ip:%d\n",strlen(destIpAddr));
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, tmp2);
@@ -87,19 +89,19 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	printf("Serialized into byte array: %s\n", serialized);
 	
 	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
-	printf("Send to %d len %d\n", callbackFd, strlen(serialized));	
+	//printf("Send to %d len %d\n", callbackFd, strlen(serialized));	
 	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
 	return 0;
 }
 
 int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
-	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*Buffer for ethernet frame*/
-	int length = 0; /*length of the received frame*/ 
-	
-	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, NULL, NULL);
+	char* buf = malloc(ETH_MAX_MSG_LEN);
+	int length = recvfrom(sockfd, buf, ETH_MAX_MSG_LEN, 0, NULL, NULL);
 	if (length == -1) { 
 		printf("%s\n", "Length=-1");
+		return -1;
 	}
+	strcpy(msg, buf);
 
 	printf("Got message\n");
 }

@@ -36,7 +36,14 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 	eh->h_proto = 0x00;
 	
 	// copy not only msg, but also dest IP
-	strcpy(data, dto->msg);
+	FrameUserData frameUserData;
+	frameUserData.portNumber = dto->destPort;
+	frameUserData.ipAddr = malloc(IP_ADDR_LEN);
+	strcpy(frameUserData.ipAddr, dto->destIp);
+	frameUserData.msg = malloc(ETH_MAX_MSG_LEN);
+	strcpy(frameUserData.msg, dto->msg);	
+	serialFrameUdata(frameUserData, data);
+	printf("Here\n");
 
 	int sd;
 	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
@@ -52,7 +59,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 	}
 }
 
-int odrRecv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
+int odrRecv(int sockfd, FrameUserData* userData) {
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*Buffer for ethernet frame*/
 	int length = 0;
 	
@@ -65,11 +72,61 @@ int odrRecv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 		return;
 	}
 
-	// extract msg, IP
-	char* _msg = (char*)(buffer + 14);
-	strcpy(msg, _msg);
-	printf("ODR: Received msg = %s\n", msg);
+	// extract msg, IP, etc	
+	char* rawUserData = malloc(ETHFR_MAXDATA_LEN);
+	strcpy(rawUserData, (char*)(buffer + 14));
+	printf("Raw:%s\n", rawUserData);
+	deserialFrameUdata(rawUserData, userData);
 
+	printf("ODR: Received msg = %s\n", userData->msg);
 	char* srcMac = (char*)(buffer + ETH_ALEN);
-	//TODO: find out IP basing on the MAC
+}
+
+void serialFrameUdata(FrameUserData dto, unsigned char* out) {
+	unsigned char* ptrPaste = out;
+	char* portNum = itostr2(dto.portNumber);	
+	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.ipAddr);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, portNum);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.msg);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, "\0");	
+	free(portNum);
+}
+
+void deserialFrameUdata(char* src, FrameUserData* out) {
+	char* ptr = strtok(src, "|");
+	int member = 0;
+	while(ptr) {
+		switch(member++) {
+			printf("Member #%d=%s", member, ptr);
+			case 0:
+				out->ipAddr = malloc(IP_ADDR_LEN);
+				strcpy(out->ipAddr, ptr);
+				break;
+			case 1:
+				out->portNumber = atoi(ptr);
+				break;
+			case 2:
+				out->msg = malloc(ETH_MAX_MSG_LEN);
+				strcpy(out->msg, ptr);
+				break;
+		};
+		ptr = strtok(NULL, "|");
+	}
+}
+
+char* cpyAndMovePtr2(unsigned char* destPtr, const char* src) {
+	strcpy(destPtr, src);
+	destPtr += strlen(src);
+	return destPtr;
+}
+char* addDlm2(unsigned char* destPtr) {
+	char* delimiter = "|\0";
+	return cpyAndMovePtr(destPtr, delimiter);
+}
+char* itostr2(int val){
+	char* res = malloc(10);
+	sprintf(res, "%d\0", val);
+	return res;
 }
