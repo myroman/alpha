@@ -20,7 +20,7 @@ char* nt();
 int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
 void fillInterfaces();
 
-int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]);
+int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
 int odrRecv(int sockfd, FrameUserData* userData);
 int addCurrentNodeAddressAsSource(SendDto* dto);
 void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd);
@@ -41,4 +41,6 @@ void deserialFrameUdata(char* src, FrameUserData* out);
 char* cpyAndMovePtr2(unsigned char* destPtr, const char* src);
 char* addDlm2(unsigned char* destPtr);
 char* itostr2(int val);
+
+#define PROTOCOL_NUMBER 51235
 #endif

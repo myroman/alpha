@@ -22,11 +22,11 @@ void sig_int(int signo) {
 }
 
 int populateVmInfo(){
-	vmInfo = malloc(sizeof(VM_IP) * 10);
+	vmInfo = malloc(sizeof(VM_IP) * 11);
     if(vmInfo == NULL)
     	err_sys("malloc error on allocating vmInfo structs");
     int i =0;
-    for(i =0; i < 10; i++){
+    for(i =0; i < 11; i++){
     	switch (i){
     		case 0:
     			strcpy(vmInfo[i].vm_name,"vm1");
@@ -68,16 +68,23 @@ int populateVmInfo(){
     			strcpy(vmInfo[i].vm_name, "vm10");
     			strcpy(vmInfo[i].vm_ip, "130.245.156.20");
     			break;
+			case 10:
+				strcpy(vmInfo[i].vm_name, "loc");
+    			strcpy(vmInfo[i].vm_ip, "loc");
+    			break;
     		default:
     			break;
     	}
     }
 }
 char * findIPofVM(char * ptr){
+	debug("Gonna find %s", ptr);
 	int i =0;
-	for(i = 0; i < 10; i++){
+	for(i = 0; i < 11; i++){
 		if(strcmp(ptr, vmInfo[i].vm_name) == 0){
 			return vmInfo[i].vm_ip;
+		} else{
+			debug("nope:%s", vmInfo[i].vm_name);
 		}
 	}
 	return NULL;
@@ -85,7 +92,7 @@ char * findIPofVM(char * ptr){
 char * findNameofVM(char * ip){
 	int i =0;
 
-	for(i = 0; i < 10; i++){
+	for(i = 0; i < 11; i++){
 		if(strcmp(ip, vmInfo[i].vm_ip) == 0){
 			return vmInfo[i].vm_name;
 		}
@@ -115,7 +122,7 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
   resend: 
 	printf("Client at node %s sending to server at %s\n", myNodeName, serverVM);
 
-	res = msg_send(lstFd, ROMAN_IP_TEST, SRV_PORT_NUMBER, s, forceRediscovery);
+	res = msg_send(lstFd, serverIP, SRV_PORT_NUMBER, s, forceRediscovery);
 
 	//return;
 	debug("Requested time...");
@@ -124,7 +131,7 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
 	while ((n = msg_recv(lstFd, timestamp, destIpAddr, &destPort))) {
 		if(n>0){
 			printf("Clinet at node %s received from %s\n", myNodeName, serverVM);
-			printf("Timestamp: %s", timestamp);
+			printf("Timestamp: %s\n", timestamp);
 			return;
 		}
 		break;
@@ -192,7 +199,7 @@ int main(int argc, char **argv)
 				continue;
 			}
 			else{
-				printf("Not a valide option. Type vm# where '#' is replaced by a number from [1,10]\n");
+				printf("Not a valid option. Type vm# where '#' is replaced by a number from [1,10]\n");
 			}
 
 		}

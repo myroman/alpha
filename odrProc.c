@@ -12,8 +12,6 @@
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
-//TODO: use prhwaddrs to use arbitrary MAC	
-unsigned char roman_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*our MAC address*/		
 int newClientPortNumber = 1024;//seed
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -75,6 +73,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		if (addCurrentNodeAddressAsSource(dto) == 0) {
 			continue;
 		}
+		handleLocalDestMode(dto);
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
 			strcpy(callbackClientName, senderAddr.sun_path);			
@@ -83,9 +82,16 @@ void* respondToHostRequestsRoutine (void *arg) {
 		} else {
 			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), dto->msg, senderAddr.sun_path);						
 		}
-		//src_mac and dest mac should be used in another way!
-		//add current
-		odrSend(dto, roman_mac, roman_mac);
+		
+		// TODO: probably we don't have to lock it because it's reading.
+		pthread_mutex_lock(&lock);
+		NetworkInterface* currentNode = getCurrentNodeInterface();
+		if (currentNode == NULL) {
+			debug("Currenet node if is NULL.Exit");
+			return;
+		}
+		pthread_mutex_unlock(&lock);
+		odrSend(dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
 	}	
 
 	pthread_exit(0);
@@ -107,10 +113,6 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		}
 		FrameUserData* userData = malloc(sizeof(FrameUserData));
 		n = odrRecv(sockfd, userData);
-		if (n == 0) {
-
-			//continue;
-		}
 		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber);
 
@@ -118,7 +120,14 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		int atDestination = atDestination = (strcmp(ifHead->ipAddr, userData->ipAddr) == 0);
 		if (atDestination == 0) {
 			printf("%s We're at intermediate node with IP=%s", nt(), userData->ipAddr);
-			odrSend(userData, roman_mac, roman_mac);
+			pthread_mutex_lock(&lock);
+			NetworkInterface* currentNode = getCurrentNodeInterface();
+			if (currentNode == NULL) {
+				debug("Currenet node if is NULL.Exit");
+				return;
+			}
+			pthread_mutex_unlock(&lock);
+			odrSend(userData, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
 		} else {
 			printf("%s We're at dest node with IP=%s\n", nt(), userData->ipAddr);		
 			// check if it is request to server
@@ -261,6 +270,21 @@ int addCurrentNodeAddressAsSource(SendDto* dto) {
 	
 	pthread_mutex_unlock(&lock);
 	return 1;
+}
+
+void handleLocalDestMode(SendDto* dto) {
+	pthread_mutex_lock(&lock);
+
+	NetworkInterface* nodeIf = getCurrentNodeInterface();
+	if (nodeIf == NULL) {
+		printf("%s Error: client node doesn't have eth0\n", ut());
+		return 0;
+	}
+	if (strcmp(dto->destIp, "loc") == 0) {
+		strcpy(dto->destIp, nodeIf->ipAddr);
+	}
+	
+	pthread_mutex_unlock(&lock);
 }
 
 void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {	

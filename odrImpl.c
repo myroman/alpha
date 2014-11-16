@@ -7,7 +7,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {	
+int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {	
 	SockAddrLl socket_address;/*target address*/	
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*buffer for ethernet frame*/	
 	unsigned char* etherhead = buffer;/*pointer to ethenet header*/	
@@ -17,8 +17,8 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 
 	/*prepare sockaddr_ll*/	
 	socket_address.sll_family   = PF_PACKET;/*RAW communication*/
-	socket_address.sll_protocol = htons(52457);	/*we don't use a protocoll above ethernet layer->just use anything here*/
-	socket_address.sll_ifindex  = 2; /*index of the network device see full code later how to retrieve it*/	
+	socket_address.sll_protocol = htons(PROTOCOL_NUMBER);	/*we don't use a protocoll above ethernet layer->just use anything here*/
+	socket_address.sll_ifindex  = destInterfaceIndex; /*index of the network device see full code later how to retrieve it*/	
 	socket_address.sll_hatype   = ARPHRD_ETHER;	/*ARP hardware identifier is ethernet*/	
 	socket_address.sll_pkttype  = PACKET_OTHERHOST;/*target is another host*/	
 	socket_address.sll_halen    = ETH_ALEN;		/*address length*/
@@ -48,18 +48,17 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 
 	serialFrameUdata(frameUserData, data);
 	int sd;
-	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (PROTOCOL_NUMBER))) < 0) {
 	    perror ("socket() failed ");
 	    exit (EXIT_FAILURE);
 	}
 	/*send the packet*/
-	printf("ODR:sending PF_PACKET with data %s\n", data);
+	debug("ODR:sending PF_PACKET with data %s", data);
 	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&socket_address, sizeof(socket_address));
 	if (send_result == -1) { 
-		printf("send result == -1\n");
+		debug("send result == -1");
 		return 1;
 	}
-	printf("send res=%d\n", send_result);
 }
 
 int odrRecv(int sockfd, FrameUserData* userData) {
@@ -72,9 +71,6 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	if (length == -1) { 
 		printf("Error when received");
 		return 0;
-	}
-	if (senderAddr.sll_protocol != 52457) {
-		//return 0;
 	}
 	
 	// extract msg, IP, etc	
