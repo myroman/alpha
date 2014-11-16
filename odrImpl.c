@@ -16,8 +16,8 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 
 	/*prepare sockaddr_ll*/	
 	socket_address.sll_family   = PF_PACKET;/*RAW communication*/
-	socket_address.sll_protocol = htons(52457);	/*we don't use a protocoll above ethernet layer->just use anything here*/
-	socket_address.sll_ifindex  = 2; /*index of the network device see full code later how to retrieve it*/	
+	socket_address.sll_protocol = htons(52456);	/*we don't use a protocoll above ethernet layer->just use anything here*/
+	socket_address.sll_ifindex  = 3; /*index of the network device see full code later how to retrieve it*/	
 	socket_address.sll_hatype   = ARPHRD_ETHER;	/*ARP hardware identifier is ethernet*/	
 	socket_address.sll_pkttype  = PACKET_OTHERHOST;/*target is another host*/	
 	socket_address.sll_halen    = ETH_ALEN;		/*address length*/
@@ -57,6 +57,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 		printf("send result == -1\n");
 		return 1;
 	}
+	printf("send res=%d\n", send_result);
 }
 
 int odrRecv(int sockfd, FrameUserData* userData) {
@@ -69,7 +70,12 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
-		return;
+		return 0;
+	}
+	int protocol = ntohs(senderAddr.sll_protocol);
+	printf("protocol:%d", protocol);
+	if (protocol != 52456) {
+		return 0;
 	}
 
 	// extract msg, IP, etc	
@@ -80,6 +86,8 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 
 	printf("ODR: Received msg = %s\n", userData->msg);
 	char* srcMac = (char*)(buffer + ETH_ALEN);
+
+	return 1;
 }
 
 void serialFrameUdata(FrameUserData dto, unsigned char* out) {

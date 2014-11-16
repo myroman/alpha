@@ -1,5 +1,6 @@
 #include "unp.h"
 #include "misc.h"
+#include "debug.h"
 
 SockAddrUn createSockAddrUn(const char* filename){
 	SockAddrUn addr;
@@ -28,19 +29,19 @@ char* addDlm(char* destPtr) {
 // SERIALIZED MSG_SEND STRING: MSG_TYPE|DESTIP|DESTPORT|MSG|FORCEREDISCOVERY|CALLBACKFD
 int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, int forceRediscovery) {
 	if (callbackFd <= 0) {
-		printf("API: callbackFd should be positive\n");
+		debug("API: callbackFd should be positive");
 		return -1;
 	}
 	if (destIpAddr == NULL) {
-		printf("API: destIpAddr can't be NULL\n");
+		debug("API: destIpAddr can't be NULL");
 		return -1;
 	}
 	if (destPort <= 0) {
-		printf("API: destPort should be positive\n");
+		debug("API: destPort should be positive");
 		return -1;
 	}
 	if (msg == NULL) {
-		printf("API: msg can't be NULL\n");
+		debug("API: msg can't be NULL");
 		return -1;
 	}
 
@@ -75,7 +76,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	socklen_t l = sizeof(mysa);
 	bzero(&mysa, l);
 	Getsockname(callbackFd, (SockAddrUn *)&mysa, &l);
-	printf("Filepath bound to fd %d is %s\n", callbackFd, mysa.sun_path);	
+	debug("Filepath bound to fd %d is %s", callbackFd, mysa.sun_path);	
 	
 	ptrPaste = cpyAndMovePtr(ptrPaste, mysa.sun_path);
 
@@ -84,7 +85,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	free(tmp2);
 	free(tmp3);
 	free(msgType);
-	printf("Serialized into byte array: %s\n", serialized);
+	debug("Serialized into byte array: %s", serialized);
 	
 	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
 	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
@@ -107,13 +108,15 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 			char* buf = malloc(ETH_MAX_MSG_LEN);
 			int length = recvfrom(sockfd, buf, ETH_MAX_MSG_LEN, 0, NULL, NULL);
 			if (length == -1) { 
-				printf("%s\n", "Length=-1");
-				return -1;
+				debug("%s\n", "Length=-1");
+				return length;
 			}
 			strcpy(msg, buf);
 
-			printf("Got message\n");
+			debug("Got message %s", msg);
+			return length;
 		}
+		debug("Nothing read. timeout.");
 		return -1;//timeout
 	}
 	

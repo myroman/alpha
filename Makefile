@@ -12,8 +12,8 @@ prhwaddrs.o: prhwaddrs.c
 get_ifi_info_plus.o: get_ifi_info_plus.c
 	${CC} ${CFLAGS} -c get_ifi_info_plus.c ${UNP}
 
-client: client.o oapi.o misc.o
-	${CC} ${FLAGS} -o $@ client.o oapi.o misc.o ${LIBS}
+client: client.o oapi.o misc.o get_hw_addrs.o
+	${CC} ${FLAGS} -o $@ client.o oapi.o misc.o get_hw_addrs.o ${LIBS}
 server: server.o oapi.o misc.o
 	${CC} ${FLAGS} -o $@ server.o oapi.o misc.o ${LIBS}
 oapi.o: oapi.c

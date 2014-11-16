@@ -21,7 +21,7 @@ SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
 //TODO: use prhwaddrs to use arbitrary MAC	
-unsigned char roman_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*our MAC address*/		
+unsigned char roman_mac[6] = {0xbc, 0x77, 0x37, 0x27, 0x94, 0x03};/*our MAC address*/		
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -55,10 +55,10 @@ int main(int argc, char **argv) {
 
 	pthread_t unixDmnListener, networkListener;
 	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*)unixDomainFd);
-	//pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
+	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
 
 	pthread_join(unixDmnListener, NULL);
-	//pthread_join(networkListener, NULL);	
+	pthread_join(networkListener, NULL);	
 	
 	unlink(ODR_UNIX_PATH);
 	printf("ODR terminated\n");
@@ -105,11 +105,16 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	    printf("%s Socket failed ", nt());
 	    exit (EXIT_FAILURE);
 	}
-	int z = 0;
+	int z = 0, n = 1;
 	for(;;) {
-		printf("%s waiting for PF_PACKET...\n", nt());
+		if (n != 0) {
+			printf("%s waiting for PF_PACKET...\n", nt());
+		}
 		FrameUserData* userData = malloc(sizeof(FrameUserData));
-		int n = odrRecv(sockfd, userData);
+		n = odrRecv(sockfd, userData);
+		if (n == 0) {
+			continue;
+		}
 		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->ipAddr, userData->portNumber);
 

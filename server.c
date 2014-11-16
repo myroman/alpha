@@ -26,12 +26,16 @@ void replyTs(int sockfd)
 	for ( ; ; ) {
 		printf("Waiting for request...");
 		int n = msg_recv(sockfd, msg, srcIpAddr, &srcPort);
+		if (n == -1){
+			printf("Timeout msg_recv returned -1");
+			continue;
+		}
 		printf("Received msg:%s from %s:%d\n", msg, srcIpAddr, srcPort);
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s\0", ctime(&ticks));
         
         printf("Sending %s\n", buff);        
-		msg_send(sockfd, "172.23.11.2\0", 42135, buff, forceRediscovery);
+		msg_send(sockfd, "10.255.14.128\0", 42135, buff, forceRediscovery);
 	}
 
 	free(msg);
