@@ -17,8 +17,9 @@ char* nt();
 int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
 void fillInterfaces();
 
-struct sockaddr_un servaddr;
+SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
+char* callbackClientName = NULL;
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -32,10 +33,10 @@ Then call a function from odrImpl.c
 int main(int argc, char **argv) {
 	
 	int unixDomainFd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
-	unlink(UNIXDG_PATH);
-	servaddr = createSA(UNIXDG_PATH);	
-	Bind(unixDomainFd, (SA *) &servaddr, sizeof(servaddr));	
-
+	unlink(ODR_UNIX_PATH);
+	servaddr = createSockAddrUn(ODR_UNIX_PATH);	
+	bind(unixDomainFd, (SA *) &servaddr, sizeof(servaddr));	
+	callbackClientName = malloc(50);
 	fillInterfaces();
 
 	NetworkInterface* ptr = ifHead;
@@ -57,7 +58,7 @@ int main(int argc, char **argv) {
 	pthread_join(unixDmnListener, NULL);
 	pthread_join(networkListener, NULL);	
 	
-	unlink(UNIXDG_PATH);
+	unlink(ODR_UNIX_PATH);
 	printf("ODR terminated\n");
 }
 
@@ -70,17 +71,17 @@ void* respondToHostRequestsRoutine (void *arg) {
 	
 	int listenfd = (int)arg;	
 	char* buffer = malloc(MAXLINE);
-	struct sockaddr_un cliaddr;
+	SockAddrUn cliaddr;
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), listenfd);
 		int l = sizeof(cliaddr);
-		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SA *)&cliaddr, &l);
-		printf("%s Got a request, length=%d\n",ut(),length);
+		int length = recvfrom(listenfd, buffer, MAXLINE, 0, (SockAddrUn *)&cliaddr, &l);
+		printf("%s Got a request from client filepath=%s\n",ut(), cliaddr.sun_path);				
+		strcpy(callbackClientName, cliaddr.sun_path);
 		
 		//Parse string
 		SendDto* dto = malloc(sizeof(dto));
-		int res = deserializeApiReq(buffer, length, dto);
-		printf("%s Deser: msgtype=%d, destIp=%s\n", ut(), dto->msgType, dto->destIp);
+		int res = deserializeApiReq(buffer, length, dto);		
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
 			printf("%s Got a msg from client. Sending msg %s\n", ut(), dto->msg);
@@ -99,6 +100,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		unixDomainFd = (int)arg;
 	char* msg = malloc(MAXLINE); //TODO: or MAX ETHERNET LENGTH?
 	char* srcIpAddr = malloc(15);
+	SockAddrUn callbackAddr;
 	
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    printf("%s Socket failed ", nt());
@@ -108,9 +110,16 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	for(;;) {
 		printf("%s waiting for PF_PACKET...\n", nt());
 		int n = odrRecv(sockfd, msg, srcIpAddr, &srcPort);
+		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), msg, srcIpAddr, srcPort);
-		sendto(unixDomainFd, msg, strlen(msg), 0, (SA *)&servaddr, sizeof(servaddr));
-		return;		
+
+		if (callbackClientName != NULL) {
+			callbackAddr = createSockAddrUn(callbackClientName);			
+			printf("%s Sending to a client Unix file %s\n", nt(), callbackAddr.sun_path);
+			sendto(unixDomainFd, msg, strlen(msg), 0, (SockAddrUn *)&callbackAddr, sizeof(callbackAddr));
+		} else{
+			printf("Callback filename for client is NULL\n");
+		}
 	}
 }
 
@@ -152,6 +161,9 @@ int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
 			case 5:
 				dto->callbackFd = atoi(tok);
 				break;
+			case 6:
+				dto->callbackFilename = malloc(strlen(tok));
+				strcpy(dto->callbackFilename, tok);
         }
         tok = strtok(NULL, delim);
     }    

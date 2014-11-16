@@ -1,8 +1,8 @@
 #include "unp.h"
 #include "misc.h"
 
-struct sockaddr_un createSA(const char* filename){
-	struct sockaddr_un addr;
+SockAddrUn createSockAddrUn(const char* filename){
+	SockAddrUn addr;
 	bzero(&addr, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
 	strcpy(addr.sun_path, filename);
@@ -55,6 +55,8 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
 	ptrPaste = addDlm(ptrPaste);
+
+
 	printf("len of ip:%d\n",strlen(destIpAddr));
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
 	ptrPaste = addDlm(ptrPaste);
@@ -65,6 +67,15 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	ptrPaste = cpyAndMovePtr(ptrPaste, tmp3);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, cbfd);
+	ptrPaste = addDlm(ptrPaste);
+
+	SockAddrUn mysa;
+	socklen_t l = sizeof(mysa);
+	bzero(&mysa, l);
+	Getsockname(callbackFd, (SA *)&mysa, &l);
+	printf("Filepath bound to fd %d is %s\n", callbackFd, mysa.sun_path);	
+	
+	ptrPaste = cpyAndMovePtr(ptrPaste, mysa.sun_path);
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
 	
@@ -74,10 +85,9 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	free(msgType);
 
 	printf("Serialized into byte array: %s\n", serialized);
-
-	struct sockaddr_un addr = createSA(UNIXDG_PATH);
+	
+	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
 	printf("Send to %d len %d\n", callbackFd, strlen(serialized));	
-
 	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
 	return 0;
 }
