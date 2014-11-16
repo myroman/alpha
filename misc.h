@@ -17,6 +17,8 @@
 #define SRV_UNIX_PATH "TonyRomanSrv"
 #define SRV_PORT_NUMBER 51248
 
+#define ROMAN_IP_TEST "10.0.2.15\0"
+
 void rmnl(char* s);
 char* createTmplFilename();
 

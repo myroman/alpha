@@ -48,8 +48,8 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 
 	char* serialized = malloc(MAXLINE);
 	char* ptrPaste = serialized;
-	char* tmp2 = itostr(destPort);	
-	char* tmp3 = itostr(forceRediscovery);	
+	char* destPortS = itostr(destPort);	
+	char* forceRed = itostr(forceRediscovery);	
 	char* msgType;
 	if (destPort == SRV_PORT_NUMBER) {
 		msgType = itostr(CLIENT_MSG_TYPE);
@@ -62,27 +62,16 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
 	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, tmp2);
+	ptrPaste = cpyAndMovePtr(ptrPaste, destPortS);
 	ptrPaste = addDlm(ptrPaste);
 	ptrPaste = cpyAndMovePtr(ptrPaste, msg);
 	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, tmp3);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, cbfd);
-	ptrPaste = addDlm(ptrPaste);
-	
-	SockAddrUn mysa;
-	socklen_t l = sizeof(mysa);
-	bzero(&mysa, l);
-	Getsockname(callbackFd, (SockAddrUn *)&mysa, &l);
-	printf("Filepath bound to fd %d is %s\n", callbackFd, mysa.sun_path);	
-	
-	ptrPaste = cpyAndMovePtr(ptrPaste, mysa.sun_path);
+	ptrPaste = cpyAndMovePtr(ptrPaste, forceRed);
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
 	free(cbfd);
-	free(tmp2);
-	free(tmp3);
+	free(destPortS);
+	free(forceRed);
 	free(msgType);
 	printf("Serialized into byte array: %s\n", serialized);
 	

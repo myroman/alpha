@@ -15,11 +15,11 @@ char* addDlm(char* destPtr);
 struct sendDto {
 	int msgType;
 	char* destIp;
-	int destPort;
+	int destPort;	
 	char* msg;
 	int forceRedisc;
-	int callbackFd;
-	char* callbackFilename;
+	char* srcIp;
+	int srcPort;
 }; 
 typedef struct sendDto SendDto;
 #endif

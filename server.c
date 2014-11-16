@@ -31,7 +31,7 @@ void replyTs(int sockfd)
         snprintf(buff, sizeof(buff), "%.24s\0", ctime(&ticks));
         
         printf("Sending %s\n", buff);        
-		msg_send(sockfd, "172.23.11.2\0", 42135, buff, forceRediscovery);
+		msg_send(sockfd, ROMAN_IP_TEST, 1024, buff, forceRediscovery);
 	}
 
 	free(msg);

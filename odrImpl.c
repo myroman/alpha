@@ -34,17 +34,19 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6]) {
 	memcpy((void*)buffer, (void*)destMac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)srcMac, ETH_ALEN);
 	eh->h_proto = 0x00;
-	
-	// copy not only msg, but also dest IP
+	// copy SendDto to FrameUserData
 	FrameUserData frameUserData;
 	frameUserData.portNumber = dto->destPort;
 	frameUserData.ipAddr = malloc(IP_ADDR_LEN);
 	strcpy(frameUserData.ipAddr, dto->destIp);
+	
+	frameUserData.srcPortNumber = dto->srcPort;
+	frameUserData.srcIpAddr = malloc(IP_ADDR_LEN);
+	strcpy(frameUserData.srcIpAddr, dto->srcIp);
 	frameUserData.msg = malloc(ETH_MAX_MSG_LEN);
-	strcpy(frameUserData.msg, dto->msg);	
-	serialFrameUdata(frameUserData, data);
-	printf("Here\n");
+	strcpy(frameUserData.msg, dto->msg);
 
+	serialFrameUdata(frameUserData, data);
 	int sd;
 	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    perror ("socket() failed ");
@@ -65,16 +67,16 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	
 	SockAddrLl senderAddr;
 	int sz = sizeof(senderAddr);
-
 	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
 		return;
-	}
+	} 
 
 	// extract msg, IP, etc	
-	char* rawUserData = malloc(ETHFR_MAXDATA_LEN);
+	char* rawUserData = malloc(length);
 	strcpy(rawUserData, (char*)(buffer + 14));
+	printf("hey\n");printf("hey\n");
 	printf("Raw:%s\n", rawUserData);
 	deserialFrameUdata(rawUserData, userData);
 
@@ -84,7 +86,12 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 
 void serialFrameUdata(FrameUserData dto, unsigned char* out) {
 	unsigned char* ptrPaste = out;
-	char* portNum = itostr2(dto.portNumber);	
+	char* portNum = itostr2(dto.portNumber);
+	char* srcPortNum = itostr2(dto.srcPortNumber);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.srcIpAddr);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, srcPortNum);
+	ptrPaste = addDlm2(ptrPaste);
 	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.ipAddr);
 	ptrPaste = addDlm2(ptrPaste);
 	ptrPaste = cpyAndMovePtr2(ptrPaste, portNum);
@@ -101,13 +108,20 @@ void deserialFrameUdata(char* src, FrameUserData* out) {
 		switch(member++) {
 			printf("Member #%d=%s", member, ptr);
 			case 0:
+				out->srcIpAddr = malloc(IP_ADDR_LEN);
+				strcpy(out->srcIpAddr, ptr);
+				break;
+			case 1:
+				out->srcPortNumber = atoi(ptr);
+				break;
+			case 2:
 				out->ipAddr = malloc(IP_ADDR_LEN);
 				strcpy(out->ipAddr, ptr);
 				break;
-			case 1:
+			case 3:
 				out->portNumber = atoi(ptr);
 				break;
-			case 2:
+			case 4:
 				out->msg = malloc(ETH_MAX_MSG_LEN);
 				strcpy(out->msg, ptr);
 				break;
