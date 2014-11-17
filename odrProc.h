@@ -18,6 +18,7 @@ void* respondToNetworkRequestsRoutine (void *arg);
 char* ut();
 char* nt();
 int deserializeApiReq(char* buffer, size_t bufSz, SendDto* dto);
+void serializeServerDto(FrameUserData dto, char* out);
 void fillInterfaces();
 
 int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);

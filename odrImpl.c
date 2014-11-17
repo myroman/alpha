@@ -48,7 +48,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 
 	serialFrameUdata(frameUserData, data);
 	int sd;
-	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (PROTOCOL_NUMBER))) < 0) {
+	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    perror ("socket() failed ");
 	    exit (EXIT_FAILURE);
 	}
@@ -59,6 +59,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 		debug("send result == -1");
 		return 1;
 	}
+	debug("ODR: send result:%d", send_result);
 }
 
 int odrRecv(int sockfd, FrameUserData* userData) {
@@ -67,11 +68,17 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	
 	SockAddrLl senderAddr;
 	int sz = sizeof(senderAddr);
+	
 	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
 		return 0;
 	}
+	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
+		printf(".");
+		return 0;
+	}
+	debug("ODR:received something");
 	
 	// extract msg, IP, etc	
 	char* rawUserData = malloc(length);

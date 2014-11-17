@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 	
 	printf("*** List of interfaces ***\n");
 	for(;ptr != NULL;ptr = ptr->next) {
-		printf("Interface #%d, IP:%s, HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->macAddress);
+		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->isEth0, ptr->macAddress);
 		int i=0;
 		for(i=0;i<6;++i) {
 			printf("%.2x:", ptr->macAddress[i]);
@@ -91,6 +91,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 			return;
 		}
 		pthread_mutex_unlock(&lock);
+		debug("%s Gonna send", ut());
 		odrSend(dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
 	}	
 
@@ -113,6 +114,9 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		}
 		FrameUserData* userData = malloc(sizeof(FrameUserData));
 		n = odrRecv(sockfd, userData);
+		if (n == 0) {
+			continue;
+		}
 		// find out if it's from client or from server
 		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber);
 
@@ -215,10 +219,10 @@ void fillInterfaces() {
 			niPtr = niPtr->next;
 		}
 
-		if (strcmp(hwa->if_name, "eth0") == 0) {
+		if ((strcmp(hwa->if_name, "eth0") == 0)||(strcmp(hwa->if_name, "wlan0") == 0)) {
 			niPtr->isEth0 = 1;
+			printf("Etho is found\n");
 		}
-
 		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
 
 		if (prflag) {
@@ -232,6 +236,7 @@ void fillInterfaces() {
 
 //				printf("%.2x%s", *ptr++ & 0xff, (i == 1) ? " " : ":");
 			} while (--i > 0);
+
 		}
 
 		niPtr->interfaceIndex = hwa->if_index;
@@ -263,6 +268,7 @@ int addCurrentNodeAddressAsSource(SendDto* dto) {
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
 	if (nodeIf == NULL) {
 		printf("%s Error: client node doesn't have eth0\n", ut());
+		
 		return 0;
 	}
 	strcpy(dto->srcIp, nodeIf->ipAddr);	
@@ -289,20 +295,53 @@ void handleLocalDestMode(SendDto* dto) {
 
 void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {	
 	SockAddrUn appAddr;
-
+	char* buf = malloc(ETHFR_MAXDATA_LEN);
 	printf("%s Port number:%d\n", nt(), userData->portNumber);
 	if (userData->portNumber == SRV_PORT_NUMBER) {
 		appAddr = createSockAddrUn(SRV_UNIX_PATH);
 		printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
-		int x = sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
+		
+		serializeServerDto(*userData, buf);
+		debug("NETWORK:Sending to server buf=%s, l=%d", buf, strlen(buf));
+		int x = sendto(unixDomainFd, buf, strlen(buf), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
 		printf("Sent result = %d\n", x);
+		if(x == -1) {
+			printf("Err: %s\n", strerror(errno));
+		}
 	} else {
 		if (callbackClientName != NULL) {
 			appAddr = createSockAddrUn(callbackClientName);			
 			printf("%s Sending to a client Unix file %s, %s\n", nt(), appAddr.sun_path, userData->msg);
-			sendto(unixDomainFd, userData->msg, strlen(userData->msg), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
+			serializeServerDto(*userData, buf);
+			debug("NETWORK:Sending to client buf=%s", buf);
+			sendto(unixDomainFd, buf, strlen(buf), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
 		} else{
 			printf("Callback filename for client is NULL\n");
 		}
 	}
+}
+
+void serializeServerDto(FrameUserData dto, char* out) {
+	char* ptrPaste = out;
+	char* srcPortRaw = itostr2(dto.srcPortNumber);	
+	char* forceRed = itostr2(0);//add later to FrameUserData	
+	char* msgType;
+	if (dto.portNumber == SRV_PORT_NUMBER) {
+		msgType = itostr2(CLIENT_MSG_TYPE);
+	} else {
+		msgType = itostr2(SRV_MSG_TYPE);
+	}
+	ptrPaste = cpyAndMovePtr2(ptrPaste, msgType);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.srcIpAddr);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, srcPortRaw);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.msg);
+	ptrPaste = addDlm2(ptrPaste);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, forceRed);
+	ptrPaste = cpyAndMovePtr2(ptrPaste, "\0");
+	free(srcPortRaw);
+	free(forceRed);
+	free(msgType);
 }

@@ -17,10 +17,10 @@ int main(int argc, char **argv)
 
 void replyTs(int sockfd)
 {
-	char* msg = malloc(ETH_MAX_MSG_LEN);
+	char* msg = malloc(MAXLINE);
 	char buff[MAXLINE];
 	time_t ticks;
-	char* srcIpAddr = malloc(IP_ADDR_LEN);
+	char srcIpAddr[IP_ADDR_LEN];
 	int srcPort, forceRediscovery = 0;
 
 	for ( ; ; ) {
@@ -34,8 +34,10 @@ void replyTs(int sockfd)
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s\0", ctime(&ticks));
         
-        printf("Sending %s\n", buff);        
-		msg_send(sockfd, ROMAN_IP_TEST, 1024, buff, forceRediscovery);
+        printf("Sending %s\n", buff);  
+        //"10.255.14.128\0"  
+        //TODO     
+		msg_send(sockfd, srcIpAddr, srcPort, buff, forceRediscovery);
 	}
 
 	free(msg);

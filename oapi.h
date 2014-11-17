@@ -22,4 +22,6 @@ struct sendDto {
 	int forceRedisc;
 }; 
 typedef struct sendDto SendDto;
+
+int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto);	
 #endif

@@ -83,8 +83,6 @@ char * findIPofVM(char * ptr){
 	for(i = 0; i < 11; i++){
 		if(strcmp(ptr, vmInfo[i].vm_name) == 0){
 			return vmInfo[i].vm_ip;
-		} else{
-			debug("nope:%s", vmInfo[i].vm_name);
 		}
 	}
 	return NULL;
@@ -121,14 +119,15 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
 	//res = msg_send(lstFd, "10.0.2.15\0", SRV_PORT_NUMBER, s, forceRediscovery);
   resend: 
 	printf("Client at node %s sending to server at %s\n", myNodeName, serverVM);
-
+	//"10.255.14.128\0"
 	res = msg_send(lstFd, serverIP, SRV_PORT_NUMBER, s, forceRediscovery);
 
 	//return;
 	debug("Requested time...");
-	char* destIpAddr, *timestamp = malloc(ETH_MAX_MSG_LEN);
-	int destPort;
-	while ((n = msg_recv(lstFd, timestamp, destIpAddr, &destPort))) {
+	char* timestamp = malloc(ETH_MAX_MSG_LEN);
+	int serverPort;
+	char serverIpAddress[IP_ADDR_LEN];
+	while ((n = msg_recv(lstFd, timestamp, serverIpAddress, &serverPort))) {
 		if(n>0){
 			printf("Clinet at node %s received from %s\n", myNodeName, serverVM);
 			printf("Timestamp: %s\n", timestamp);

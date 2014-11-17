@@ -1,6 +1,7 @@
 #include "unp.h"
 #include "misc.h"
 #include "debug.h"
+#include "oapi.h"
 
 SockAddrUn createSockAddrUn(const char* filename){
 	SockAddrUn addr;
@@ -48,6 +49,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	//Serialization stage
 
 	char* serialized = malloc(MAXLINE);
+
 	char* ptrPaste = serialized;
 	char* destPortS = itostr(destPort);	
 	char* forceRed = itostr(forceRediscovery);	
@@ -57,7 +59,6 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	} else {
 		msgType = itostr(SRV_MSG_TYPE);
 	}
-	char* cbfd = itostr(callbackFd);
 	
 	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
 	ptrPaste = addDlm(ptrPaste);
@@ -70,7 +71,6 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	ptrPaste = cpyAndMovePtr(ptrPaste, forceRed);
 
 	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
-	free(cbfd);
 	free(destPortS);
 	free(forceRed);
 	free(msgType);
@@ -94,19 +94,55 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 		maxfd = sockfd+1;
 		select(maxfd, &set, NULL, NULL, &tv);
 		if(FD_ISSET(sockfd, &set)){
-			char* buf = malloc(ETH_MAX_MSG_LEN);
-			int length = recvfrom(sockfd, buf, ETH_MAX_MSG_LEN, 0, NULL, NULL);
+			char* buf = malloc(MAXLINE);
+			int length = recvfrom(sockfd, buf, MAXLINE, 0, NULL, NULL);
 			if (length == -1) { 
 				debug("%s\n", "Length=-1");
 				return length;
-			}
-			strcpy(msg, buf);
+			}			
 
-			debug("Got message %s", msg);
+			debug("Got message %s", buf);
+			SendDto* dto = malloc(sizeof(SendDto));
+			deserializeApiReq2(buf, MAXLINE, dto);
+			strcpy(srcIpAddr, dto->srcIp);
+			*srcPort = dto->srcPort;
+			debug("dto msg:%s", dto->msg);
+			strcpy(msg, dto->msg);
+			debug("after deser, %s:%d", dto->srcIp, dto->srcPort);
 			return length;
 		}
 		debug("Nothing read. timeout.");
 		return -1;//timeout
 	}
-	
+}
+
+int deserializeApiReq2(char* buffer, size_t bufLen, SendDto* dto) {
+	char* s = malloc(bufLen);
+	strcpy(s, buffer);
+
+	char *tok = NULL, *delim = "|";
+    int len = 0, member = 0;      	
+    tok = strtok(s, delim);
+	while (tok) {
+    	switch(member++){
+        	case 0:
+        		dto->msgType = atoi(tok);
+        		break;
+			case 1:
+				strcpy(dto->srcIp, tok);
+				break;
+			case 2:
+				dto->srcPort = atoi(tok);
+				break;
+			case 3:
+				dto->msg = malloc(strlen(tok));
+				strcpy(dto->msg, tok);
+				break;
+			case 4:
+				dto->forceRedisc = atoi(tok);
+				break;
+        }
+        tok = strtok(NULL, delim);
+    } 
+    return 1;
 }
