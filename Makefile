@@ -1,6 +1,6 @@
 include Make.defines
 
-all: client server test get_hw_addrs.o prhwaddrs.o odrProc routingTable portPath
+all: client server test get_hw_addrs.o prhwaddrs.o odrProc routingTable portPath bitArrayTesting
 	${CC} -o prhwaddrs prhwaddrs.o get_hw_addrs.o ${LIBS}
 
 get_hw_addrs.o: get_hw_addrs.c
@@ -40,5 +40,10 @@ portPath.o: portPath.c
 	${CC} ${FLAGS} -c portPath.c ${UNP}
 portPath: portPath.o
 	${CC} ${FLAGS} -o $@ portPath.o ${LIBS}
+
+bitArrayTesting.o: bitArrayTesting.c
+	${CC} ${FLAGS} -c bitArrayTesting.c ${UNP}
+bitArrayTesting: bitArrayTesting.o
+	${CC} ${FLAGS} -o $@ bitArrayTesting.o ${LIBS}	
 clean:
 	rm *.o client server test odrProc routingTable portPath
