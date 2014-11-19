@@ -109,7 +109,7 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
 	unlink(listenFn); //don't remove it. It helps to resolve filename later.
 
 	SockAddrUn addr = createSockAddrUn(listenFn);
-	bind(lstFd, (SockAddrUn *)&addr, sizeof(addr));
+	bind(lstFd, (SA *)&addr, sizeof(addr));
 	
 	char* s = malloc(ETHFR_MAXDATA_LEN);
 	strcpy(s, "Hi!\n");

@@ -46,4 +46,4 @@ bitArrayTesting.o: bitArrayTesting.c
 bitArrayTesting: bitArrayTesting.o
 	${CC} ${FLAGS} -o $@ bitArrayTesting.o ${LIBS}	
 clean:
-	rm *.o client server test odrProc routingTable portPath
+	rm *.o client server test odrProc routingTable portPath bitArrayTesting
