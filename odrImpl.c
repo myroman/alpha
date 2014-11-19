@@ -54,7 +54,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 	}
 	/*send the packet*/
 	debug("ODR:sending PF_PACKET with data %s", data);
-	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&socket_address, sizeof(socket_address));
+	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (send_result == -1) { 
 		debug("send result == -1");
 		return 1;
@@ -69,7 +69,7 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	SockAddrLl senderAddr;
 	int sz = sizeof(senderAddr);
 	
-	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SockAddrLl*)&senderAddr, &sz);
+	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
 		return 0;
@@ -146,6 +146,7 @@ char* addDlm2(unsigned char* destPtr) {
 }
 char* itostr2(int val){
 	char* res = malloc(10);
-	sprintf(res, "%d\0", val);
+	bzero(res, 10);
+	sprintf(res, "%d", val);
 	return res;
 }

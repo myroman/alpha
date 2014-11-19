@@ -2,7 +2,7 @@
 #include <time.h>
 #include "misc.h"
 #include "oapi.h"
-
+#include "debug.h"
 void replyTs(int sockfd);
 
 int main(int argc, char **argv)
@@ -24,10 +24,10 @@ void replyTs(int sockfd)
 	int srcPort, forceRediscovery = 0;
 
 	for ( ; ; ) {
-		printf("Waiting for request...");
+		debug("Waiting for request...");
 		int n = msg_recv(sockfd, msg, srcIpAddr, &srcPort);
 		if (n == -1){
-			printf("Timeout msg_recv returned -1");
+			printf("Timeout msg_recv\n");
 			continue;
 		}
 		printf("Received msg:%s from %s:%d\n", msg, srcIpAddr, srcPort);
