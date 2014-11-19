@@ -7,5 +7,7 @@ odrProc
 Make.defines
 routingTable
 portPath
+bitArrayTesting
+test
 *.orig
 *.txt
