@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 	
 	printf("*** List of interfaces ***\n");
 	for(;ptr != NULL;ptr = ptr->next) {
-		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->isEth0, ptr->macAddress);
+		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->isEth0);
 		int i=0;
 		for(i=0;i<6;++i) {
 			printf("%.2x:", ptr->macAddress[i]);
@@ -46,8 +46,8 @@ int main(int argc, char **argv) {
 	}
 
 	pthread_t unixDmnListener, networkListener;
-	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*)unixDomainFd);
-	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)unixDomainFd);
+	pthread_create(&unixDmnListener, NULL, (void *)&respondToHostRequestsRoutine, (void*)(intptr_t)unixDomainFd);
+	pthread_create(&networkListener, NULL, (void *)&respondToNetworkRequestsRoutine, (void*)(intptr_t)unixDomainFd);
 
 	pthread_join(unixDmnListener, NULL);
 	pthread_join(networkListener, NULL);	
@@ -59,13 +59,13 @@ int main(int argc, char **argv) {
 void* respondToHostRequestsRoutine (void *arg) {
 	socklen_t clilen;
 	
-	int unixDomainFd = (int)arg;	
+	int unixDomainFd = (intptr_t)arg;	
 	char* buffer = malloc(MAXLINE);
 	SockAddrUn senderAddr;
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
 		int l = sizeof(senderAddr);
-		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SockAddrUn *)&senderAddr, &l);
+		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l);
 
 		//Parse string
 		SendDto* dto = malloc(sizeof(SendDto));
@@ -74,6 +74,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 			continue;
 		}
 		handleLocalDestMode(dto);
+		printf("%s Got a msg: type %d, src:%s:%d, dest:%s:%d\n", ut(), dto->msgType, dto->srcIp, dto->srcPort, dto->destIp, dto->destPort);
 
 		if (dto->msgType == CLIENT_MSG_TYPE) {
 			strcpy(callbackClientName, senderAddr.sun_path);			
@@ -101,13 +102,20 @@ void* respondToHostRequestsRoutine (void *arg) {
 void* respondToNetworkRequestsRoutine (void *arg) {
 	int sockfd, 
 		srcPort, 
-		unixDomainFd = (int)arg;
+		unixDomainFd = (intptr_t)arg;
 	
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    printf("%s Socket failed ", nt());
 	    exit (EXIT_FAILURE);
 	}
 	int z = 0, n = 1;
+	pthread_mutex_lock(&lock);
+	NetworkInterface* currentNode = getCurrentNodeInterface();	
+	pthread_mutex_unlock(&lock);
+	if (currentNode == NULL) {
+		printf("Currnode is null, return");
+		return;
+	}
 	for(;;) {
 		if (n != 0) {
 			printf("%s waiting for PF_PACKET...\n", nt());
@@ -117,21 +125,13 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		if (n == 0) {
 			continue;
 		}
-		// find out if it's from client or from server
-		printf("%s got a message: %s from IP %s, port %d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber);
+		printf("%s got a frame message: %s from %s:%d to %s:%d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber, userData->ipAddr, userData->portNumber);
 
 		// compare dest IP from request and the node's current IP
-		int atDestination = atDestination = (strcmp(ifHead->ipAddr, userData->ipAddr) == 0);
+		int atDestination = atDestination = (strcmp(currentNode->ipAddr, userData->ipAddr) == 0);
 		if (atDestination == 0) {
 			printf("%s We're at intermediate node with IP=%s", nt(), userData->ipAddr);
-			pthread_mutex_lock(&lock);
-			NetworkInterface* currentNode = getCurrentNodeInterface();
-			if (currentNode == NULL) {
-				debug("Currenet node if is NULL.Exit");
-				return;
-			}
-			pthread_mutex_unlock(&lock);
-			odrSend(userData, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
+			//odrSend(&dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
 		} else {
 			printf("%s We're at dest node with IP=%s\n", nt(), userData->ipAddr);		
 			// check if it is request to server
@@ -214,7 +214,7 @@ void fillInterfaces() {
 		} while (++i < IF_HADDR);
 
 		// At this point we understand, that current interface has useful info
-		if (niPtr != ifHead) {
+		if (hwa != hwahead) {
 			niPtr->next = malloc(sizeof(NetworkInterface));
 			niPtr = niPtr->next;
 		}
@@ -253,12 +253,12 @@ NetworkInterface* getCurrentNodeInterface() {
 	}
 	NetworkInterface* p = ifHead;
 	while(p != NULL) {
-		if (p->isEth0) {
+		if (p->isEth0 == 1) {
 			return p;
 		}
 		p = p->next;
 	}
-
+	debug("getCurrentNodeInterface is null");
 	return NULL;
 }
 
@@ -278,7 +278,7 @@ int addCurrentNodeAddressAsSource(SendDto* dto) {
 	return 1;
 }
 
-void handleLocalDestMode(SendDto* dto) {
+int handleLocalDestMode(SendDto* dto) {
 	pthread_mutex_lock(&lock);
 
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
@@ -302,8 +302,8 @@ void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {
 		printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
 		
 		serializeServerDto(*userData, buf);
-		debug("NETWORK:Sending to server buf=%s, l=%d", buf, strlen(buf));
-		int x = sendto(unixDomainFd, buf, strlen(buf), 0, (SockAddrUn*)&appAddr, sizeof(appAddr));
+		debug("NETWORK:Sending to server buf=%s, l=%d", buf, (int)strlen(buf));
+		int x = sendto(unixDomainFd, buf, strlen(buf), 0, (SA *)&appAddr, sizeof(appAddr));
 		printf("Sent result = %d\n", x);
 		if(x == -1) {
 			printf("Err: %s\n", strerror(errno));
@@ -314,7 +314,7 @@ void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {
 			printf("%s Sending to a client Unix file %s, %s\n", nt(), appAddr.sun_path, userData->msg);
 			serializeServerDto(*userData, buf);
 			debug("NETWORK:Sending to client buf=%s", buf);
-			sendto(unixDomainFd, buf, strlen(buf), 0, (SockAddrUn *)&appAddr, sizeof(appAddr));
+			sendto(unixDomainFd, buf, strlen(buf), 0, (SA *)&appAddr, sizeof(appAddr));
 		} else{
 			printf("Callback filename for client is NULL\n");
 		}

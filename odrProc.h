@@ -25,6 +25,7 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 int odrRecv(int sockfd, FrameUserData* userData);
 int addCurrentNodeAddressAsSource(SendDto* dto);
 void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd);
+int handleLocalDestMode(SendDto* dto);
 
 typedef struct networkInterface NetworkInterface;
 struct networkInterface {
