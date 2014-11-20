@@ -1,4 +1,5 @@
 #include "unp.h"
+#include "misc.h"
 #include "debug.h"
 #include "odrProc.h"
 #include "oapi.h"
@@ -7,7 +8,10 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {	
+int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
+	char* nl = createTmplFilename();
+	printf("Created misc nl:%s\n", nl);
+
 	SockAddrLl socket_address;/*target address*/	
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*buffer for ethernet frame*/	
 	unsigned char* etherhead = buffer;/*pointer to ethenet header*/	
