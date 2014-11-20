@@ -9,7 +9,8 @@
 
 typedef struct RouteEntry RouteEntry;//typeDef for the Clinet Info object
 struct RouteEntry{
-	char dest_ip [IF_NAME];
+	//char dest_ip [IF_NAME];
+	in_addr_t dest_ip;
 	char next_hop [IF_HADDR];	/* hardware address */
 	int hop_count;
 	struct timeval entryTime;
@@ -18,10 +19,12 @@ struct RouteEntry{
 };
 
 
-int addRouteEntry(char * dIP, char * nh, int hc);
+//int addRouteEntry(char * dIP, char * nh, int hc);
+int addRouteEntry(in_addr_t dIP, char * nh, int hc);
 int checkTime(struct timeval * inspect);
 void removeRoutingEntry();
-RouteEntry* findAndUpdateRouteEntry(char * destIP);
+//RouteEntry* findAndUpdateRouteEntry(char * destIP);
+RouteEntry* findAndUpdateRouteEntry(in_addr_t destIP);
 void printRoutingTable();
 
 #endif

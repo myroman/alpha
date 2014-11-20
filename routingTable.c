@@ -6,7 +6,12 @@
 RouteEntry *headEntry = NULL;
 RouteEntry *tailEntry = NULL;
 
-int addRouteEntry(char * dIP, char * nh, int hc){
+char * printIPHuman(in_addr_t ip){
+    struct in_addr ipIa;
+    ipIa.s_addr = ip;
+    return inet_ntoa(ipIa);
+}
+int addRouteEntry(in_addr_t dIP, char * nh, int hc){
 	int ret = 0;
 	//Malloc the space for the new struct
     RouteEntry *newRoute = (RouteEntry *) malloc(sizeof( struct RouteEntry ));
@@ -19,7 +24,8 @@ int addRouteEntry(char * dIP, char * nh, int hc){
 
     gettimeofday(&(newRoute->entryTime), NULL);
 
-    memcpy(newRoute->dest_ip, dIP, IF_NAME);
+    //memcpy(newRoute->dest_ip, dIP, IF_NAME);
+    newRoute->dest_ip = dIP;
     memcpy(newRoute->next_hop, nh, IF_HADDR);
     newRoute->hop_count = hc;
     if(headEntry == NULL){
@@ -81,12 +87,13 @@ void removeRoutingEntry(){
     }
 }
 
-RouteEntry* findAndUpdateRouteEntry(char * destIP){
+RouteEntry* findAndUpdateRouteEntry(in_addr_t destIP){
     RouteEntry * ptr = headEntry;
     ptr = headEntry;
     removeRoutingEntry();
     while(ptr != NULL){
-        if(strcmp(ptr->dest_ip, destIP) ==0)
+        //if(strcmp(ptr->dest_ip, destIP) ==0)
+        if(destIP == ptr->dest_ip)
             return ptr;
         ptr=ptr->right;
     }
@@ -99,22 +106,26 @@ void printRoutingTable(){
 	RouteEntry * ptr = headEntry;
 	int index = 0;
 	while(ptr != NULL){
-
-		printf("%d: destIP: %s, Next Hop MAC: %s, Hop Count : %d, Entry Time: <%ld.%06ld>\n", index, ptr->dest_ip, ptr->next_hop, ptr->hop_count, (long) ptr->entryTime.tv_sec, (long) ptr->entryTime.tv_usec);
+        //char * destIP = inet_ntoa(ptr->dest_ip);
+		printf("%d: destIP: %s, Next Hop MAC: %s, Hop Count : %d, Entry Time: <%ld.%06ld>\n", index, printIPHuman(ptr->dest_ip), ptr->next_hop, ptr->hop_count, (long) ptr->entryTime.tv_sec, (long) ptr->entryTime.tv_usec);
 		index++;
 		ptr = ptr->right;
 	}
 }
 int main (){
-    addRouteEntry("129.49.233.217", "bc:77:37:27:94:03", 0);
-    addRouteEntry("129.49.233.218", "bc:77:37:27:94:03", 0);
+    //addRouteEntry("129.49.233.217", "bc:77:37:27:94:03", 0);
+    //addRouteEntry("129.49.233.218", "bc:77:37:27:94:03", 0);
+    addRouteEntry(16777343, "bc:77:37:27:94:03", 0);
+    addRouteEntry(16909567, "bc:77:37:27:94:03", 0);
+    debug("here");
     printRoutingTable();
 
-    sleep(5);
-
-    RouteEntry * p = findAndUpdateRouteEntry("129.49.233.217");
+    sleep(1);
+    debug("here");
+    RouteEntry * p = findAndUpdateRouteEntry(16909567);
+    debug("here");
     if(p != NULL){
-        printf("DESTIP %s, MAC %s, HopCount %d\n", p->dest_ip, p->next_hop, p->hop_count);
+        printf("DESTIP %s, MAC %s, HopCount %d\n", printIPHuman(p->dest_ip), p->next_hop, p->hop_count);
     }
     else{
         printf("Not found\n");

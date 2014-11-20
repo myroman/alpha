@@ -21,18 +21,16 @@ struct PayloadHdr {
 	uint32_t  destPort;
 };
 
+char * printIPHuman(in_addr_t ip){
+	struct in_addr ipIa;
+	ipIa.s_addr = ip;
+	return inet_ntoa(ipIa);
+}
 void printPayloadContents(PayloadHdr *p){
-	struct in_addr srcIpIa;
-	srcIpIa.s_addr = p->srcIp;
-	struct in_addr destIpIa;
-	destIpIa.s_addr = p->destIp;
-	char destIP [20];
-	char* destIPAddr = inet_ntoa(destIpIa);
-	printf("Source IP is %s\n",inet_ntoa(srcIpIa));
-	printf("Destination IP is %s\n",inet_ntoa(destIpIa));
+	printf("Source IP is %s %u\n",printIPHuman(p->srcIp), p->srcIp);
+	printf("Destination IP is %s %u\n",printIPHuman(p->destIp), p->destIp);
 	printf("MsgType: %u, forceRediscovery %u, RREP Sent: %u, HopCount: %u, broadcastId %u, source Port: %u, destPort: %u\n",
 	 p->msgType, p->forceRediscovery, p->rrepSent, p->hopCount, p->broadcastId, p->srcPort, p->destPort);
-
 }
 
 
