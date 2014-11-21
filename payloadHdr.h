@@ -19,6 +19,9 @@ struct PayloadHdr {
 	char* msg;
 };
 
+void* packPayload(PayloadHdr* p );
+PayloadHdr* unpackPayload(void * buf);
+
 void insertSrcPort(uint32_t sPort, void* buf);
 void insertDestPort(uint32_t dPort, void* buf);
 void insertSrcIp(in_addr_t ipAddr, void* buf);
@@ -32,7 +35,5 @@ uint32_t extractDestPort(void *buf);
 char* extractMsg(void* buf);
 
 char * printIPHuman(in_addr_t ip);
-void* createNewPayloadBuf(PayloadHdr* p );
-PayloadHdr * extractPayloadContents(void * buf);
 
 #endif

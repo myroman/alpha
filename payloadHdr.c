@@ -24,7 +24,7 @@ void printPayloadContents(PayloadHdr *p){
 	}
 }
 
-void* createPayloadBuf(PayloadHdr* p, int* bufLen){
+void* packPayload(PayloadHdr* p){
 	int msgLen = 28;
 	if (p->msg != NULL) {
 		msgLen = strlen(p->msg);	
@@ -57,7 +57,7 @@ void* createPayloadBuf(PayloadHdr* p, int* bufLen){
 	return msg_ptr;
 }
 
-PayloadHdr * extractPayloadContents(void * buf){
+PayloadHdr * unpackPayload(void * buf){
 	PayloadHdr *phdr = (PayloadHdr *) malloc(sizeof(PayloadHdr)); 	
 
 	int tmp = 0;
