@@ -111,7 +111,7 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 			debug("dto msg:%s", dto->msg);
 			strcpy(msg, dto->msg);
 			debug("after deser, %s:%d", dto->srcIp, dto->srcPort);
-			free(dto->msg);
+			//free(dto->msg);
 			free(dto);
 			free(buf);
 			return length;
@@ -141,7 +141,7 @@ int deserializeApiReq2(char* buffer, size_t bufLen, SendDto* dto) {
 				dto->srcPort = atoi(tok);
 				break;
 			case 3:
-				dto->msg = malloc(strlen(tok));
+				//dto->msg = malloc(strlen(tok));
 				strcpy(dto->msg, tok);
 				break;
 			case 4:

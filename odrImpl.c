@@ -11,7 +11,7 @@
 int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
 	char* nl = createTmplFilename();
 	printf("Created misc nl:%s\n", nl);
-
+	//free(nl);
 	SockAddrLl socket_address;/*target address*/	
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*buffer for ethernet frame*/	
 	unsigned char* etherhead = buffer;/*pointer to ethenet header*/	
@@ -51,9 +51,11 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 	strcpy(frameUserData.msg, dto->msg);
 
 	serialFrameUdata(frameUserData, data);
+	free(frameUserData.msg);
 	int sd;
 	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 	    perror ("socket() failed ");
+	    free(buffer);
 	    exit (EXIT_FAILURE);
 	}
 	/*send the packet*/
@@ -61,9 +63,11 @@ int odrSend(SendDto* dto, unsigned char srcMac[6], unsigned char destMac[6], int
 	send_result = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (send_result == -1) { 
 		debug("send result == -1");
+		free(buffer);
 		return 1;
 	}
 	debug("ODR: send result:%d", send_result);
+	free(buffer);
 }
 
 int odrRecv(int sockfd, FrameUserData* userData) {
@@ -76,10 +80,12 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
 	if (length == -1) { 
 		printf("Error when received");
+		free(buffer);
 		return 0;
 	}
 	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
 		//printf(".");
+		free(buffer);
 		return 0;
 	}
 	debug("ODR:received something");
@@ -91,7 +97,8 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 	debug("ODR: Raw data:%s", rawUserData);
 	deserialFrameUdata(rawUserData, userData);
 	char* srcMac = (char*)(buffer + ETH_ALEN);
-
+	free(rawUserData);
+	free(buffer);
 	return 1;
 }
 
@@ -110,6 +117,7 @@ void serialFrameUdata(FrameUserData dto, unsigned char* out) {
 	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.msg);
 	ptrPaste = cpyAndMovePtr2(ptrPaste, "\0");	
 	free(portNum);
+	free(srcPortNum);
 }
 
 void deserialFrameUdata(char* src, FrameUserData* out) {

@@ -54,6 +54,8 @@ int main(int argc, char **argv) {
 	
 	unlink(ODR_UNIX_PATH);
 	printf("ODR terminated\n");
+	free(callbackClientName);
+	free(ifHead);
 }
 
 void* respondToHostRequestsRoutine (void *arg) {
@@ -65,12 +67,17 @@ void* respondToHostRequestsRoutine (void *arg) {
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
 		int l = sizeof(senderAddr);
+		debug("C");
 		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l);
-
+		debug("C");
 		//Parse string
 		SendDto* dto = malloc(sizeof(SendDto));
-		int res = deserializeApiReq(buffer, length, dto);		
+		debug("C");
+		int res = deserializeApiReq(buffer, strlen(buffer), dto);		
 		if (addCurrentNodeAddressAsSource(dto) == 0) {
+			debug("C");
+			//free(dto->msg);
+			free(dto);
 			continue;
 		}
 		handleLocalDestMode(dto);
@@ -89,13 +96,21 @@ void* respondToHostRequestsRoutine (void *arg) {
 		NetworkInterface* currentNode = getCurrentNodeInterface();
 		if (currentNode == NULL) {
 			debug("Currenet node if is NULL.Exit");
+			//free(dto->msg);
+			free(dto);
+			free(buffer);
 			return;
 		}
 		pthread_mutex_unlock(&lock);
 		debug("%s Gonna send", ut());
 		odrSend(dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
-	}	
+		debug("C");
+		//free(dto->msg);
+		free(dto);
 
+	}
+	debug("C");	
+	free(buffer);
 	pthread_exit(0);
 }
 
@@ -149,13 +164,17 @@ char* ut() {
 }
 
 int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
-	char* s = malloc(bufLen);
+	char* s = (char*) malloc(bufLen);
+	//char s [bufLen];
+	debug("%p", s);
+	//char s [bufLen];
 	strcpy(s, buffer);
 
 	char *tok = NULL, *delim = "|";
     int len = 0, member = 0;      	
     tok = strtok(s, delim);
 	while (tok) {
+    	debug("%s, %p", tok,s);
     	switch(member++){
         	case 0:
         		dto->msgType = atoi(tok);
@@ -167,15 +186,20 @@ int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
 				dto->destPort = atoi(tok);
 				break;
 			case 3:
-				dto->msg = malloc(strlen(tok));
+				//dto->msg = malloc(strlen(tok));
 				strcpy(dto->msg, tok);
 				break;
 			case 4:
 				dto->forceRedisc = atoi(tok);
 				break;
+			default:
+				debug("AHH");
         }
         tok = strtok(NULL, delim);
-    } 
+    }
+    debug("%p", s);
+    //free(s); 
+    debug("C");
     return 1;
 }
 
@@ -314,6 +338,7 @@ void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {
 			printf("Callback filename for client is NULL\n");
 		}
 	}
+	free(buf);
 }
 
 void serializeServerDto(FrameUserData dto, char* out) {
@@ -338,5 +363,4 @@ void serializeServerDto(FrameUserData dto, char* out) {
 	ptrPaste = cpyAndMovePtr2(ptrPaste, "\0");
 	free(srcPortRaw);
 	free(forceRed);
-	free(msgType);
 }

@@ -18,7 +18,8 @@ struct sendDto {
 	int srcPort;
 	char destIp[IP_ADDR_LEN];
 	int destPort;	
-	char* msg;
+	//char* msg;
+	char msg[1000];
 	int forceRedisc;
 }; 
 typedef struct sendDto SendDto;
