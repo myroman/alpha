@@ -22,3 +22,10 @@ char* createTmplFilename(){
 	s[9]='\0';
 	return s;
 }
+
+void printOK() {
+	printf("OK\n");
+}
+void printFailed() {
+	printf("FAILED: %s\n", strerror(errno));
+}

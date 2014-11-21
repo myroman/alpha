@@ -117,7 +117,7 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
 	res = msg_send(lstFd, serverIP, SRV_PORT_NUMBER, s, forceRediscovery);
 	debug("P5");
 	free(s);
-	//return;
+	
 	debug("Requested time...");
 	char* timestamp = malloc(ETH_MAX_MSG_LEN);
 	int serverPort;
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
 				continue;
 			}
 			else{
-				printf("Not a valid option. Type vm# where '#' is replaced by a number from [1,10]\n");
+				printf("Not a valid option. Type vm# where '#' is replaced by a number from [1,10]\n");				
 			}
 
 		}
@@ -216,8 +216,6 @@ int main(int argc, char **argv)
 			printf("Error in selection. Plese type vm1 or vm2 etc...\n");
 		}
 	}
-
-
 	
 	if (n < 0)
 		err_sys("read error");

@@ -1,6 +1,7 @@
 #ifndef __payloadhdr_h
 #define __payloadhdr_h
 
+#include "misc.h"
 #include "oapi.h"
 typedef struct PayloadHdr PayloadHdr;
 struct PayloadHdr {
@@ -16,13 +17,13 @@ struct PayloadHdr {
 	uint32_t srcPort;
 	uint32_t  destPort;
 
-	char* msg;
+	char msg[MAX_PAYLD_MSG_LEN];
 };
 
 // Interface of this file
 void* packPayload(PayloadHdr* p, uint32_t* bufLen);
-PayloadHdr* unpackPayload(void* buf);
-void printPayloadContents(PayloadHdr *p);
+void unpackPayload(void* buf, PayloadHdr* ph);
+void printPayloadContents(PayloadHdr *ph);
 char * printIPHuman(in_addr_t ip);
 
 // for inner use

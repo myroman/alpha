@@ -4,6 +4,7 @@
 #include "odrProc.h"
 #include "misc.h"
 #include "hw_addrs.h"
+#include "payloadHdr.h"
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
@@ -62,96 +63,96 @@ void* respondToHostRequestsRoutine (void *arg) {
 	socklen_t clilen;
 	
 	int unixDomainFd = (intptr_t)arg;	
-	char* buffer = malloc(MAXLINE);
+	void* buffer = malloc(MAXLINE);//change to 1500 or less
 	SockAddrUn senderAddr;
+	PayloadHdr payload;
+	
 	for(;;) {
 		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
-		int l = sizeof(senderAddr);
-		debug("C");
-		int length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l);
-		debug("C");
-		//Parse string
-		SendDto* dto = malloc(sizeof(SendDto));
-		debug("C");
-		int res = deserializeApiReq(buffer, strlen(buffer), dto);		
-		if (addCurrentNodeAddressAsSource(dto) == 0) {
-			debug("C");
-			//free(dto->msg);
-			free(dto);
+		int l = sizeof(senderAddr), length;
+		if ((length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l)) == -1) {			
 			continue;
 		}
-		handleLocalDestMode(dto);
-		printf("%s Got a msg: type %d, src:%s:%d, dest:%s:%d\n", ut(), dto->msgType, dto->srcIp, dto->srcPort, dto->destIp, dto->destPort);
+		pthread_mutex_lock(&lock);
+		debug("%s Received buffer, length=%d", ut(), length);
 
-		if (dto->msgType == CLIENT_MSG_TYPE) {
+		unpackPayload(buffer, &payload);	
+		debug("h");	
+		
+		debug("h");
+		//print info
+		printf("%s", ut());
+		printPayloadContents(&payload);
+
+		if (addCurrentNodeAddressAsSource(&payload) == 0) {			
+			pthread_mutex_unlock(&lock);
+			continue;
+		}
+
+		handleLocalDestMode(&payload);		
+
+		if (payload.msgType == CLIENT_MSG_TYPE) {
 			strcpy(callbackClientName, senderAddr.sun_path);			
 			
 			printf("%s Got a msg from client (filepath=%s)\n", ut(), senderAddr.sun_path);			
 		} else {
-			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), dto->msg, senderAddr.sun_path);						
+			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
 		}
 		
-		// TODO: probably we don't have to lock it because it's reading.
-		pthread_mutex_lock(&lock);
+		// Let's lock to show consistent output
+		
 		NetworkInterface* currentNode = getCurrentNodeInterface();
 		if (currentNode == NULL) {
-			debug("Currenet node if is NULL.Exit");
-			//free(dto->msg);
-			free(dto);
+			debug("Current node if is NULL.Exit");
+			pthread_mutex_unlock(&lock);
 			free(buffer);
 			return;
-		}
+		}					
+		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 		pthread_mutex_unlock(&lock);
-		debug("%s Gonna send", ut());
-		odrSend(dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
-		debug("C");
-		//free(dto->msg);
-		free(dto);
-
 	}
-	debug("C");	
 	free(buffer);
 	pthread_exit(0);
 }
 
 void* respondToNetworkRequestsRoutine (void *arg) {
-	int sockfd, 
-		srcPort, 
-		unixDomainFd = (intptr_t)arg;
+	int srcPort, 
+		unixDomainFd = (intptr_t)arg;	
 	
-	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-	    printf("%s Socket failed ", nt());
-	    exit (EXIT_FAILURE);
-	}
-	int z = 0, n = 1;
-	pthread_mutex_lock(&lock);
+	int z = 0;
+	//pthread_mutex_lock(&lock);
 	NetworkInterface* currentNode = getCurrentNodeInterface();	
-	pthread_mutex_unlock(&lock);
+	//pthread_mutex_unlock(&lock);
 	if (currentNode == NULL) {
-		printf("Currnode is null, return");
+		printf("Current node is null, return\n");
 		return;
 	}
+	PayloadHdr ph;
+	int n = 1; //flag handling bad incoming packets
 	for(;;) {
 		if (n != 0) {
-			printf("%s waiting for PF_PACKET...\n", nt());
+			printf("%s waiting for PF_PACKET..\n", nt());
 		}
-		FrameUserData* userData = malloc(sizeof(FrameUserData));
-		n = odrRecv(sockfd, userData);
+		
+		n = odrRecv(&ph);
 		if (n == 0) {
 			continue;
 		}
-		printf("%s got a frame message: %s from %s:%d to %s:%d \n", nt(), userData->msg, userData->srcIpAddr, userData->srcPortNumber, userData->ipAddr, userData->portNumber);
-
+		pthread_mutex_lock(&lock);
+		n = 1;
+		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
+		
 		// compare dest IP from request and the node's current IP
-		int atDestination = atDestination = (strcmp(currentNode->ipAddr, userData->ipAddr) == 0);
+		//TODO: USE inet IP for comparison
+		int atDestination = atDestination = (strcmp(currentNode->ipAddr, printIPHuman(ph.destIp)) == 0);
 		if (atDestination == 0) {
-			printf("%s We're at intermediate node with IP=%s", nt(), userData->ipAddr);
-			//odrSend(&dto, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);
+			printf("%s We're at intermediate node with IP=%s", nt(), printIPHuman(ph.destIp));
 		} else {
-			printf("%s We're at dest node with IP=%s\n", nt(), userData->ipAddr);		
+			printf("%s We're at dest node with IP=%s\n", nt(), printIPHuman(ph.destIp));
 			// check if it is request to server
-			handlePacketAtDestinationNode(userData, unixDomainFd);
-		}	
+			handlePacketAtDestinationNode(&ph, unixDomainFd);
+		}
+		pthread_mutex_unlock(&lock);
 	}
 }
 
@@ -161,46 +162,6 @@ char* nt() {
 
 char* ut() {
 	return "Unix thread:";
-}
-
-int deserializeApiReq(char* buffer, size_t bufLen, SendDto* dto) {
-	char* s = (char*) malloc(bufLen);
-	//char s [bufLen];
-	debug("%p", s);
-	//char s [bufLen];
-	strcpy(s, buffer);
-
-	char *tok = NULL, *delim = "|";
-    int len = 0, member = 0;      	
-    tok = strtok(s, delim);
-	while (tok) {
-    	debug("%s, %p", tok,s);
-    	switch(member++){
-        	case 0:
-        		dto->msgType = atoi(tok);
-        		break;
-			case 1:
-				strcpy(dto->destIp, tok);
-				break;
-			case 2:
-				dto->destPort = atoi(tok);
-				break;
-			case 3:
-				//dto->msg = malloc(strlen(tok));
-				strcpy(dto->msg, tok);
-				break;
-			case 4:
-				dto->forceRedisc = atoi(tok);
-				break;
-			default:
-				debug("AHH");
-        }
-        tok = strtok(NULL, delim);
-    }
-    debug("%p", s);
-    //free(s); 
-    debug("C");
-    return 1;
 }
 
 void fillInterfaces() {
@@ -281,8 +242,9 @@ NetworkInterface* getCurrentNodeInterface() {
 	return NULL;
 }
 
-int addCurrentNodeAddressAsSource(SendDto* dto) {
-	pthread_mutex_lock(&lock);
+// We fill srcPort from eth0 interface
+int addCurrentNodeAddressAsSource(PayloadHdr* ph) {
+	//pthread_mutex_lock(&lock);
 
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
 	if (nodeIf == NULL) {
@@ -290,77 +252,75 @@ int addCurrentNodeAddressAsSource(SendDto* dto) {
 		
 		return 0;
 	}
-	strcpy(dto->srcIp, nodeIf->ipAddr);	
-	dto->srcPort = newClientPortNumber++;
+	ph->srcIp = inet_addr(nodeIf->ipAddr);
+	ph->srcPort = newClientPortNumber++;
 	
-	pthread_mutex_unlock(&lock);
+	//pthread_mutex_unlock(&lock);
 	return 1;
 }
 
-int handleLocalDestMode(SendDto* dto) {
-	pthread_mutex_lock(&lock);
+
+int handleLocalDestMode(PayloadHdr* ph) {
+	//pthread_mutex_lock(&lock);
 
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
 	if (nodeIf == NULL) {
 		printf("%s Error: client node doesn't have eth0\n", ut());
 		return 0;
 	}
-	if (strcmp(dto->destIp, "loc") == 0) {
-		strcpy(dto->destIp, nodeIf->ipAddr);
+	// we check the passcode
+	if (ph->destIp == LOCAL_INET_IP){
+		debug("DestIP is local!");
+		ph->destIp = inet_addr(nodeIf->ipAddr);		
 	}
 	
-	pthread_mutex_unlock(&lock);
+	//pthread_mutex_unlock(&lock);
 }
 
-void handlePacketAtDestinationNode(FrameUserData* userData, int unixDomainFd) {	
+// Handles scenario when the packet arrived at destination
+// 2 basic cases: we're at server or client node.
+void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {	
 	SockAddrUn appAddr;
-	char* buf = malloc(ETHFR_MAXDATA_LEN);
-	printf("%s Port number:%d\n", nt(), userData->portNumber);
-	if (userData->portNumber == SRV_PORT_NUMBER) {
-		appAddr = createSockAddrUn(SRV_UNIX_PATH);
-		printf("%s Sending to a server Unix file %s\n", nt(), appAddr.sun_path);
-		
-		serializeServerDto(*userData, buf);
-		debug("NETWORK:Sending to server buf=%s, l=%d", buf, (int)strlen(buf));
-		int x = sendto(unixDomainFd, buf, strlen(buf), 0, (SA *)&appAddr, sizeof(appAddr));
-		printf("Sent result = %d\n", x);
-		if(x == -1) {
-			printf("Err: %s\n", strerror(errno));
-		}
-	} else {
-		if (callbackClientName != NULL) {
-			appAddr = createSockAddrUn(callbackClientName);			
-			printf("%s Sending to a client Unix file %s, %s\n", nt(), appAddr.sun_path, userData->msg);
-			serializeServerDto(*userData, buf);
-			debug("NETWORK:Sending to client buf=%s", buf);
-			sendto(unixDomainFd, buf, strlen(buf), 0, (SA *)&appAddr, sizeof(appAddr));
-		} else{
-			printf("Callback filename for client is NULL\n");
-		}
-	}
-	free(buf);
-}
+	void* buf;
+	int bufLen, res;
 
-void serializeServerDto(FrameUserData dto, char* out) {
-	char* ptrPaste = out;
-	char* srcPortRaw = itostr2(dto.srcPortNumber);	
-	char* forceRed = itostr2(0);//add later to FrameUserData	
-	char* msgType;
-	if (dto.portNumber == SRV_PORT_NUMBER) {
-		msgType = itostr2(CLIENT_MSG_TYPE);
-	} else {
-		msgType = itostr2(SRV_MSG_TYPE);
+	printf("%s Port number:%d\n", nt(), ph->destPort);
+	if (ph->destPort == SRV_PORT_NUMBER) {
+		appAddr = createSockAddrUn(SRV_UNIX_PATH);
+		
+		buf = packPayload(ph, &bufLen);
+
+		//pthread_mutex_lock(&lock);
+		printf("%s:Sending to a server UNIX file %s the buffer message %s...", ut(), appAddr.sun_path, ph->msg);
+		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
+			printFailed();
+			//pthread_mutex_unlock(&lock);
+			free(buf);
+			return;
+		} 
+		printOK();
+		free(buf);
+		//pthread_mutex_unlock(&lock);
+		
+		return;
 	}
-	ptrPaste = cpyAndMovePtr2(ptrPaste, msgType);
-	ptrPaste = addDlm2(ptrPaste);
-	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.srcIpAddr);
-	ptrPaste = addDlm2(ptrPaste);
-	ptrPaste = cpyAndMovePtr2(ptrPaste, srcPortRaw);
-	ptrPaste = addDlm2(ptrPaste);
-	ptrPaste = cpyAndMovePtr2(ptrPaste, dto.msg);
-	ptrPaste = addDlm2(ptrPaste);
-	ptrPaste = cpyAndMovePtr2(ptrPaste, forceRed);
-	ptrPaste = cpyAndMovePtr2(ptrPaste, "\0");
-	free(srcPortRaw);
-	free(forceRed);
+
+	if (callbackClientName != NULL) {
+		appAddr = createSockAddrUn(callbackClientName);			
+		buf = packPayload(ph, &bufLen);
+
+		//pthread_mutex_lock(&lock);
+		printf("%s Sending to a client Unix file %s message %s...", ut(), appAddr.sun_path, ph->msg);		
+		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
+			printFailed();
+			//pthread_mutex_unlock(&lock);
+			free(buf);
+			return;
+		}
+		printOK();
+		free(buf);		
+		//pthread_mutex_unlock(&lock);
+		return;
+	}
+	printf("Callback filename for client is NULL\n");	
 }

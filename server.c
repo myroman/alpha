@@ -35,9 +35,7 @@ void replyTs(int sockfd)
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s", ctime(&ticks));
         
-        printf("Sending %s\n", buff);  
-        //"10.255.14.128\0"  
-        //TODO     
+        printf("Sending %s, length = %d\n", buff, (int)strlen(buff));         
 		msg_send(sockfd, srcIpAddr, srcPort, buff, forceRediscovery);
 	}
 

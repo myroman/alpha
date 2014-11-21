@@ -24,17 +24,23 @@ void printPayloadContents(PayloadHdr *p){
 	}
 }
 
-void* packPayload(PayloadHdr* p, uint32_t* bufLen){
-	int msgLen = 28;
-	if (p->msg != NULL) {
-		msgLen = strlen(p->msg);	
-		if (msgLen < 28) {
-			msgLen = 28;
-		} else if (msgLen > 1482) {
-			msgLen = 1482;
-		}
+// Basically it's strlen(msg) + 1 for storing '\0'
+int resolveCorrectMsgSize(char* msg) {
+	if (msg == NULL) {
+		return 28;
 	}
-	int headerLength = 18 + msgLen;
+	int msgSize = strlen(msg) + 1;	
+	if (msgSize < 28) {
+		msgSize = 28;
+	} else if (msgSize > 1482) {
+		msgSize = 1482;
+	}
+	return msgSize;
+}
+
+void* packPayload(PayloadHdr* p, uint32_t* bufLen){
+
+	int headerLength = 18 + resolveCorrectMsgSize(p->msg);
 	void * msg_ptr = malloc(headerLength);
 	bzero(msg_ptr, headerLength);
 	
@@ -58,8 +64,7 @@ void* packPayload(PayloadHdr* p, uint32_t* bufLen){
 	return msg_ptr;
 }
 
-PayloadHdr * unpackPayload(void * buf){
-	PayloadHdr *phdr = (PayloadHdr *) malloc(sizeof(PayloadHdr)); 	
+void unpackPayload(void * buf, PayloadHdr* phdr){
 	bzero(phdr, sizeof(PayloadHdr));
 
 	int tmp = 0;
@@ -75,9 +80,14 @@ PayloadHdr * unpackPayload(void * buf){
 
 	phdr->srcIp = extractSrcIp(buf);
 	phdr->destIp = extractDestIp(buf);
-	phdr->msg = extractMsg(buf);
 
-	return phdr;
+	uint32_t msgLen = 0;
+	memcpy(&msgLen, buf + 16, 2);
+	if (msgLen <= 0) {
+		return;
+	}
+	bzero(phdr->msg, msgLen + 1);
+	memcpy(phdr->msg, buf + 18, msgLen);
 }
 
 void insertSrcIp(in_addr_t ipAddr, void* buf) {
@@ -106,49 +116,25 @@ void insertDestPort(uint32_t dPort, void* buf){
 // should be NULL-term. string!
 void insertMsgOrFluff(char* msg, void* buf) {	
 	uint32_t* ptr = (uint32_t*)(buf + 16);
-	uint32_t* msgPtr = (uint32_t*)(buf + 18);
+	char* msgPtr = (char*)(buf + 18);
 
-	uint32_t msgLength;
+	uint32_t strSize;
 	if (msg == NULL) {
-		msgLength = 0;
+		strSize = 0;
 	} else {
-		msgLength = strlen(msg);
-	}	
-	debug("l of msg:%d", (int)msgLength);
-
-	if (msgLength <= 28) {
-		//copy message
-		uint32_t padSize = 28 - msgLength;
-		memcpy(msgPtr, msg, msgLength);
-		//pad it
-		msgPtr = msgPtr + msgLength;		
-		bzero(msgPtr, padSize);
-	} 
-	else if (msgLength > 1482) {
-		msgLength = 1482;
-		memcpy(msgPtr, msg, msgLength);
-	} else {
-		memcpy(msgPtr, msg, msgLength);		
+		// +1 byte for '\0'
+		strSize = strlen(msg) + 1;
 	}
+	if (strSize > 1482) {
+		strSize = 1482;
+	}
+
+	bzero(msgPtr, strSize);
+	memcpy(msgPtr, msg, strSize - 1);
+
+	// filling message length (without '\0')
 	bzero((void*)ptr, 2);
-	*ptr = *ptr | (msgLength & 0xFFFF);
-}
-
-char* extractMsg(void* buf) {
-	uint32_t* ptr = (uint32_t*)(buf + 16),
-		*msgPtr = (uint32_t*)(buf + 18);	
-	
-	uint32_t msgLen = 0;
-	memcpy(&msgLen, buf + 16, 2);
-	debug("Extracted msglen=%u", msgLen);
-	if (msgLen <= 0) {
-		return NULL;
-	}
-
-	char* msg = (char*)malloc(msgLen) + 1;
-	memcpy(msg, buf + 18, msgLen);
-	msg[msgLen] = '\0';
-	return msg;
+	*ptr = *ptr | ((strSize-1) & 0xFFFF);
 }
 
 in_addr_t extractSrcIp(void* buf) {
