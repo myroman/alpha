@@ -101,27 +101,22 @@ char * findNameofVM(char * ip){
 
 int callServer(char* serverIP, char *serverVM, int lstFd){
 	// Setup listening filename
-	listenFn = malloc(10);
-	strncpy(listenFn, createTmplFilename(), 10);
-	debug("listenFn=%s", listenFn);
-	int z = mkstemp(listenFn);
-	debug("listenFn=%s,z=%d", listenFn, z);
-	unlink(listenFn); //don't remove it. It helps to resolve filename later.
-
-	SockAddrUn addr = createSockAddrUn(listenFn);
-	bind(lstFd, (SA *)&addr, sizeof(addr));
-	
-	char* s = malloc(ETHFR_MAXDATA_LEN);
-	strcpy(s, "Hi!\n");
-	rmnl(s);	
+	char* s;
 	int forceRediscovery = 0, res,n, retransmit = 0;
 
 	//res = msg_send(lstFd, "10.0.2.15\0", SRV_PORT_NUMBER, s, forceRediscovery);
   resend: 
+	
+	s = malloc(ETHFR_MAXDATA_LEN);
+	strcpy(s, "Hi!\n");
+	rmnl(s);
+	debug("P4");	
+
 	printf("Client at node %s sending to server at %s\n", myNodeName, serverVM);
 	//"10.255.14.128\0"
 	res = msg_send(lstFd, serverIP, SRV_PORT_NUMBER, s, forceRediscovery);
-
+	debug("P5");
+	free(s);
 	//return;
 	debug("Requested time...");
 	char* timestamp = malloc(ETH_MAX_MSG_LEN);
@@ -131,10 +126,12 @@ int callServer(char* serverIP, char *serverVM, int lstFd){
 		if(n>0){
 			printf("Clinet at node %s received from %s\n", myNodeName, serverVM);
 			printf("Timestamp: %s\n", timestamp);
+			free(timestamp);
 			return;
 		}
 		break;
 	}
+	free(timestamp);
 	if(n == -1){
 		printf("Client at node %s: timeout on response from %s\n", myNodeName, serverVM);
 		retransmit++;
@@ -180,6 +177,16 @@ int main(int argc, char **argv)
 	populateVmInfo();
 	getNodeName();
 	printf("%s , %s\n", vmInfo[2].vm_name, vmInfo[2].vm_ip);
+
+	listenFn = malloc(10);
+	strncpy(listenFn, createTmplFilename(), 10);
+	debug("listenFn=%s", listenFn);
+	int z = mkstemp(listenFn);
+	debug("listenFn=%s,z=%d", listenFn, z);
+	unlink(listenFn); //don't remove it. It helps to resolve filename later.
+
+	SockAddrUn addr = createSockAddrUn(listenFn);
+	bind(lstFd, (SA *)&addr, sizeof(addr));
 	
 	printf("**** Welcome to the Time Client. ****\n");
 
