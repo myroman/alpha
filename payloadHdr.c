@@ -13,9 +13,9 @@ char * printIPHuman(in_addr_t ip){
 	return inet_ntoa(ipIa);
 }
 void printPayloadContents(PayloadHdr *p){
-	printf("Source IP is %s %u\n",printIPHuman(p->srcIp), p->srcIp);
-	printf("Destination IP is %s %u\n",printIPHuman(p->destIp), p->destIp);
-	printf("MsgType: %u, forceRediscovery %u, RREP Sent: %u, HopCount: %u, broadcastId %u, source Port: %u, destPort: %u",
+	printf(">> Source IP is %s %u\n",printIPHuman(p->srcIp), p->srcIp);
+	printf(">> Destination IP is %s %u\n",printIPHuman(p->destIp), p->destIp);
+	printf(">> MsgType: %u, forceRediscovery %u, RREP Sent: %u, HopCount: %u, broadcastId %u, source Port: %u, destPort: %u",
 	 p->msgType, p->forceRediscovery, p->rrepSent, p->hopCount, p->broadcastId, p->srcPort, p->destPort);
 	if (p->msg != NULL){
 		printf(", msgLength: %u, msg:%s\n", (uint32_t)strlen(p->msg), p->msg);
@@ -24,7 +24,7 @@ void printPayloadContents(PayloadHdr *p){
 	}
 }
 
-void* packPayload(PayloadHdr* p){
+void* packPayload(PayloadHdr* p, uint32_t* bufLen){
 	int msgLen = 28;
 	if (p->msg != NULL) {
 		msgLen = strlen(p->msg);	
@@ -46,19 +46,21 @@ void* packPayload(PayloadHdr* p){
 	tmp |= (p->hopCount << 14);
 	tmp |= p->broadcastId;
 	//copy info to the head of buffer
-	memcpy(msg_ptr, &tmp, 4);
-	
+	memcpy(msg_ptr, &tmp, 4);	
 	insertSrcIp(p->srcIp, msg_ptr);
 	insertDestIp(p->destIp, msg_ptr);
 	insertSrcPort(p->srcPort, msg_ptr);
 	insertDestPort(p->destPort, msg_ptr);
 	insertMsgOrFluff(p->msg, msg_ptr);
 	debug("Created buffer size:%d", headerLength);
+
+	*bufLen = headerLength;
 	return msg_ptr;
 }
 
 PayloadHdr * unpackPayload(void * buf){
 	PayloadHdr *phdr = (PayloadHdr *) malloc(sizeof(PayloadHdr)); 	
+	bzero(phdr, sizeof(PayloadHdr));
 
 	int tmp = 0;
 	memcpy(&tmp, buf, 4);
@@ -97,14 +99,14 @@ void insertSrcPort(uint32_t sPort, void* buf){
 void insertDestPort(uint32_t dPort, void* buf){
 	uint32_t* ptr = (uint32_t*)(buf + 14);
 	bzero((void*)ptr, 2);
-	*ptr = *ptr | (dPort & 0xFFFF);
+	dPort = dPort & 0xFFFF;	
+	*ptr = *ptr | dPort;
 }
 
 // should be NULL-term. string!
 void insertMsgOrFluff(char* msg, void* buf) {	
 	uint32_t* ptr = (uint32_t*)(buf + 16);
 	uint32_t* msgPtr = (uint32_t*)(buf + 18);
-	bzero((void*)ptr, 2);
 
 	uint32_t msgLength;
 	if (msg == NULL) {
@@ -113,21 +115,22 @@ void insertMsgOrFluff(char* msg, void* buf) {
 		msgLength = strlen(msg);
 	}	
 	debug("l of msg:%d", (int)msgLength);
+
 	if (msgLength <= 28) {
 		//copy message
 		uint32_t padSize = 28 - msgLength;
 		memcpy(msgPtr, msg, msgLength);
-		
 		//pad it
-		msgPtr = msgPtr + msgLength;
-		memset(msgPtr, 0xFF, padSize);
+		msgPtr = msgPtr + msgLength;		
+		bzero(msgPtr, padSize);
 	} 
 	else if (msgLength > 1482) {
 		msgLength = 1482;
 		memcpy(msgPtr, msg, msgLength);
 	} else {
-		memcpy(msgPtr, msg, msgLength);
+		memcpy(msgPtr, msg, msgLength);		
 	}
+	bzero((void*)ptr, 2);
 	*ptr = *ptr | (msgLength & 0xFFFF);
 }
 
@@ -137,13 +140,14 @@ char* extractMsg(void* buf) {
 	
 	uint32_t msgLen = 0;
 	memcpy(&msgLen, buf + 16, 2);
-	
+	debug("Extracted msglen=%u", msgLen);
 	if (msgLen <= 0) {
 		return NULL;
 	}
 
-	char* msg = (char*)malloc(msgLen);
+	char* msg = (char*)malloc(msgLen) + 1;
 	memcpy(msg, buf + 18, msgLen);
+	msg[msgLen] = '\0';
 	return msg;
 }
 
@@ -162,14 +166,13 @@ in_addr_t extractDestIp(void* buf) {
 }
 
 uint32_t extractSrcPort(void *buf){
-	int16_t tmp;
+	uint32_t tmp;
 	memcpy(&tmp, buf + 12, 2);
 	tmp = tmp & (0xFFFF);
-	
 	return (uint32_t)tmp;
 }
 uint32_t extractDestPort(void *buf){
-	int16_t tmp;
+	uint32_t tmp;
 	memcpy(&tmp, buf + 14, 2);
 	tmp = tmp & (0xFFFF);
 	return (uint32_t)tmp;

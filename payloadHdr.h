@@ -19,21 +19,25 @@ struct PayloadHdr {
 	char* msg;
 };
 
-void* packPayload(PayloadHdr* p );
-PayloadHdr* unpackPayload(void * buf);
+// Interface of this file
+void* packPayload(PayloadHdr* p, uint32_t* bufLen);
+PayloadHdr* unpackPayload(void* buf);
+void printPayloadContents(PayloadHdr *p);
+char * printIPHuman(in_addr_t ip);
 
+// for inner use
 void insertSrcPort(uint32_t sPort, void* buf);
 void insertDestPort(uint32_t dPort, void* buf);
 void insertSrcIp(in_addr_t ipAddr, void* buf);
 void insertDestIp(in_addr_t ipAddr, void* buf);
+// msg should be NULL-terminated
 void insertMsgOrFluff(char* msg, void* buf);
 
 in_addr_t extractSrcIp(void* buf);
 in_addr_t extractDestIp(void* buf);
 uint32_t extractSrcPort(void *buf);
 uint32_t extractDestPort(void *buf);
+//return NULL-terminated msg
 char* extractMsg(void* buf);
-
-char * printIPHuman(in_addr_t ip);
 
 #endif
