@@ -184,6 +184,7 @@ int main(int argc, char **argv)
 	free(fn);
 	debug("listenFn=%s", listenFn);
 	int z = mkstemp(listenFn);
+	unlink(listenFn);
 	debug("listenFn=%s,z=%d", listenFn, z);
 	unlink(listenFn); //don't remove it. It helps to resolve filename later.
 
