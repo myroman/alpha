@@ -136,12 +136,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 			printf("%s We're at dest node with IP=%s\n", nt(), userData->ipAddr);		
 			// check if it is request to server
 			handlePacketAtDestinationNode(userData, unixDomainFd);
-		}
-		//TODO: remove later. added to avoid too much cycles if sth works wrong
-		if (z++ == 4) {
-			printf("Exit\n");
-			return;
-		}		
+		}	
 	}
 }
 

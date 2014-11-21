@@ -79,7 +79,7 @@ int odrRecv(int sockfd, FrameUserData* userData) {
 		return 0;
 	}
 	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
-		printf(".");
+		//printf(".");
 		return 0;
 	}
 	debug("ODR:received something");
