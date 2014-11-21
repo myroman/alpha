@@ -19,11 +19,6 @@ struct PayloadHdr {
 	char* msg;
 };
 
-void insertType(uint32_t type, void* buf);
-void insertFD(uint32_t fd, void* buf);
-void insertRREQ(uint32_t r, void* buf);
-void insertHopCount(uint32_t hopCount , void* buf);
-void insertBroadCastID(uint32_t bID , void* buf);
 void insertSrcPort(uint32_t sPort, void* buf);
 void insertDestPort(uint32_t dPort, void* buf);
 void insertSrcIp(in_addr_t ipAddr, void* buf);
@@ -34,11 +29,6 @@ in_addr_t extractSrcIp(void* buf);
 in_addr_t extractDestIp(void* buf);
 uint32_t extractSrcPort(void *buf);
 uint32_t extractDestPort(void *buf);
-uint32_t extractType(void* buf);
-uint32_t extractFD(void* buf);
-uint32_t extractRREQ(void* buf);
-uint32_t extractHopCount(void* buf);
-uint32_t extractBroadCast(void* buf);
 char* extractMsg(void* buf);
 
 char * printIPHuman(in_addr_t ip);

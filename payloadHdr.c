@@ -37,30 +37,36 @@ void* createPayloadBuf(PayloadHdr* p, int* bufLen){
 	int headerLength = 18 + msgLen;
 	void * msg_ptr = malloc(headerLength);
 	bzero(msg_ptr, headerLength);
-
-	insertType(p->msgType, msg_ptr);
-	insertFD(p->forceRediscovery, msg_ptr);
-	insertRREQ(p->rrepSent, msg_ptr);
-	insertHopCount(p->hopCount, msg_ptr);
-	insertBroadCastID(p->broadcastId, msg_ptr);
+	
+	// Create compact storage in 4 bytes.	
+	int tmp = 0;
+	tmp = (p->msgType << 30);	
+	tmp |= (p->forceRediscovery << 29);
+	tmp |= (p->rrepSent << 28);
+	tmp |= (p->hopCount << 14);
+	tmp |= p->broadcastId;
+	//copy info to the head of buffer
+	memcpy(msg_ptr, &tmp, 4);
+	
 	insertSrcIp(p->srcIp, msg_ptr);
 	insertDestIp(p->destIp, msg_ptr);
 	insertSrcPort(p->srcPort, msg_ptr);
 	insertDestPort(p->destPort, msg_ptr);
-
 	insertMsgOrFluff(p->msg, msg_ptr);
 	debug("Created buffer size:%d", headerLength);
 	return msg_ptr;
 }
 
 PayloadHdr * extractPayloadContents(void * buf){
-	PayloadHdr *phdr = (PayloadHdr *) malloc(sizeof(PayloadHdr)); 
-	
-	phdr->msgType = extractType(buf);
-	phdr->forceRediscovery = extractFD(buf);
-	phdr->rrepSent = extractRREQ(buf);
-	phdr->hopCount = extractHopCount(buf);
-	phdr->broadcastId = extractBroadCast(buf);
+	PayloadHdr *phdr = (PayloadHdr *) malloc(sizeof(PayloadHdr)); 	
+
+	int tmp = 0;
+	memcpy(&tmp, buf, 4);
+	phdr->msgType = (tmp & 0xc0000000) >> 30;
+	phdr->forceRediscovery = (tmp & 0x20000000) >> 29;
+	phdr->rrepSent = (tmp & 0x10000000) >> 28;
+	phdr->hopCount = (tmp & 0xFFFC000) >> 14;
+	phdr->broadcastId = tmp & 0x3FFF;
 
 	phdr->srcPort = extractSrcPort(buf);
 	phdr->destPort = extractDestPort(buf);
@@ -71,52 +77,6 @@ PayloadHdr * extractPayloadContents(void * buf){
 
 	return phdr;
 }
-
-void insertType(uint32_t type, void* buf){
-	uint32_t * result = (uint32_t *)malloc(4);
-	//uint32_t result;
-	memcpy(result, buf, 4);
-	type = type << 30;
-	*result = *result | type;
-	memcpy(buf, result, 4);	
-	free(result);
-}
-
-
-void insertFD(uint32_t fd, void* buf){
-	uint32_t* result = malloc(4);
-	memcpy(result, buf, 4);
-	fd = fd << 29;
-	*result = *result | fd;
-	memcpy(buf, result, 4);
-	free(result);
-}
-
-void insertRREQ(uint32_t r, void* buf){
-	uint32_t* result = malloc(4);
-	memcpy(result, buf, 4);
-	r = r << 28;
-	*result = *result | r;
-	memcpy(buf, result, 4);
-	free(result);
-}
-void insertHopCount(uint32_t hopCount , void* buf){
-	uint32_t* result = malloc(4);
-	memcpy(result, buf, 4);
-	hopCount = hopCount << 14;
-	*result = *result | hopCount;
-	memcpy(buf, result, 4);
-	free(result);
-}
-
-void insertBroadCastID(uint32_t bID , void* buf){
-	uint32_t* result = malloc(4);
-	memcpy(result, buf, 4);
-	*result = *result | bID;
-	memcpy(buf, result, 4);
-	free(result);
-}
-
 
 void insertSrcIp(in_addr_t ipAddr, void* buf) {
 	void* ptr = buf + 4;
@@ -144,7 +104,6 @@ void insertDestPort(uint32_t dPort, void* buf){
 void insertMsgOrFluff(char* msg, void* buf) {	
 	uint32_t* ptr = (uint32_t*)(buf + 16);
 	uint32_t* msgPtr = (uint32_t*)(buf + 18);
-
 	bzero((void*)ptr, 2);
 
 	uint32_t msgLength;
@@ -174,12 +133,10 @@ void insertMsgOrFluff(char* msg, void* buf) {
 
 char* extractMsg(void* buf) {
 	uint32_t* ptr = (uint32_t*)(buf + 16),
-		*msgPtr = (uint32_t*)(buf + 18);
+		*msgPtr = (uint32_t*)(buf + 18);	
 	
-	uint32_t* pLen = (uint32_t*)malloc(2);
-	memcpy(pLen, buf + 16, 2);
-	uint32_t msgLen = *pLen;
-	free(pLen);
+	uint32_t msgLen = 0;
+	memcpy(&msgLen, buf + 16, 2);
 	
 	if (msgLen <= 0) {
 		return NULL;
@@ -205,66 +162,15 @@ in_addr_t extractDestIp(void* buf) {
 }
 
 uint32_t extractSrcPort(void *buf){
-	void* ptr = malloc(2);
-	memcpy(ptr, buf + 12, 2);
-	uint32_t result = *((uint32_t*)ptr);
-	result = result & (0xFFFF);
-	free(ptr);
-	return result;
+	int16_t tmp;
+	memcpy(&tmp, buf + 12, 2);
+	tmp = tmp & (0xFFFF);
+	
+	return (uint32_t)tmp;
 }
 uint32_t extractDestPort(void *buf){
-	void* ptr = malloc(2);
-	memcpy(ptr, buf + 14, 2);
-	uint32_t result = *((uint32_t*)ptr);
-	result = result & (0xFFFF);
-	free(ptr);
-	return result;
-}
-uint32_t extractType(void* buf){
-	uint32_t* ptr = malloc(4);
-	memcpy(ptr, buf, 4);
-	uint32_t result = *ptr;
-	free(ptr);
-	result = result & (0xc0000000);
-	result = result >> 30;
-	return result;
-}
-
-uint32_t extractFD(void* buf){
-	uint32_t* ptr = malloc(4);
-	memcpy(ptr, buf, 4);
-	uint32_t result = *ptr;
-	free(ptr);
-	result = result & (0x20000000);
-	result = result >> 29;
-	return result;
-}
-
-uint32_t extractRREQ(void* buf){
-	uint32_t* ptr = malloc(4);
-	memcpy(ptr, buf, 4);
-	uint32_t result = *ptr;
-	free(ptr);
-	result = result & (0x10000000);
-	result = result >> 28;
-	return result;
-}
-
-uint32_t extractHopCount(void* buf){
-	uint32_t* ptr = malloc(4);
-	memcpy(ptr, buf, 4);
-	uint32_t result = *ptr;
-	free(ptr);
-	result = result & (0xFFFC000);
-	result = result >> 14;
-	return result;
-}
-
-uint32_t extractBroadCast(void* buf){
-	uint32_t* ptr = malloc(4);
-	memcpy(ptr, buf, 4);
-	uint32_t result = *ptr;
-	free(ptr);
-	result = result & (0x3FFF);
-	return result;
+	int16_t tmp;
+	memcpy(&tmp, buf + 14, 2);
+	tmp = tmp & (0xFFFF);
+	return (uint32_t)tmp;
 }
