@@ -179,7 +179,9 @@ int main(int argc, char **argv)
 	printf("%s , %s\n", vmInfo[2].vm_name, vmInfo[2].vm_ip);
 
 	listenFn = malloc(10);
-	strncpy(listenFn, createTmplFilename(), 10);
+	char * fn =  createTmplFilename();
+	strncpy(listenFn, fn, 10);
+	free(fn);
 	debug("listenFn=%s", listenFn);
 	int z = mkstemp(listenFn);
 	debug("listenFn=%s,z=%d", listenFn, z);

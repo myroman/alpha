@@ -78,6 +78,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	
 	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
 	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
+	free(serialized);
 	return 0;
 }
 
@@ -98,6 +99,7 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 			int length = recvfrom(sockfd, buf, MAXLINE, 0, NULL, NULL);
 			if (length == -1) { 
 				debug("%s\n", "Length=-1");
+				free(buf);
 				return length;
 			}			
 
@@ -109,6 +111,9 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 			debug("dto msg:%s", dto->msg);
 			strcpy(msg, dto->msg);
 			debug("after deser, %s:%d", dto->srcIp, dto->srcPort);
+			free(dto->msg);
+			free(dto);
+			free(buf);
 			return length;
 		}
 		debug("Nothing read. timeout.");
@@ -123,6 +128,7 @@ int deserializeApiReq2(char* buffer, size_t bufLen, SendDto* dto) {
 	char *tok = NULL, *delim = "|";
     int len = 0, member = 0;      	
     tok = strtok(s, delim);
+    free(s);
 	while (tok) {
     	switch(member++){
         	case 0:
