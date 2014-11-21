@@ -14,7 +14,6 @@ SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
 int newClientPortNumber = 1024;//seed
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -72,25 +71,21 @@ void* respondToHostRequestsRoutine (void *arg) {
 		int l = sizeof(senderAddr), length;
 		if ((length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l)) == -1) {			
 			continue;
-		}
-		pthread_mutex_lock(&lock);
+		}		
 		debug("%s Received buffer, length=%d", ut(), length);
 
 		unpackPayload(buffer, &payload);	
-		debug("h");	
 		
-		debug("h");
 		//print info
 		printf("%s", ut());
 		printPayloadContents(&payload);
-
-		if (addCurrentNodeAddressAsSource(&payload) == 0) {			
-			pthread_mutex_unlock(&lock);
+	
+		if (addCurrentNodeAddressAsSource(&payload) == 0) {						
 			continue;
 		}
-
+	
 		handleLocalDestMode(&payload);		
-
+	
 		if (payload.msgType == CLIENT_MSG_TYPE) {
 			strcpy(callbackClientName, senderAddr.sun_path);			
 			
@@ -101,15 +96,15 @@ void* respondToHostRequestsRoutine (void *arg) {
 		
 		// Let's lock to show consistent output
 		
+		lockm();
 		NetworkInterface* currentNode = getCurrentNodeInterface();
+		unlockm();
 		if (currentNode == NULL) {
-			debug("Current node if is NULL.Exit");
-			pthread_mutex_unlock(&lock);
+			debug("Current node if is NULL.Exit");			
 			free(buffer);
 			return;
 		}					
-		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
-		pthread_mutex_unlock(&lock);
+		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);				
 	}
 	free(buffer);
 	pthread_exit(0);
@@ -120,9 +115,10 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		unixDomainFd = (intptr_t)arg;	
 	
 	int z = 0;
-	//pthread_mutex_lock(&lock);
+	lockm();
 	NetworkInterface* currentNode = getCurrentNodeInterface();	
-	//pthread_mutex_unlock(&lock);
+	unlockm();
+
 	if (currentNode == NULL) {
 		printf("Current node is null, return\n");
 		return;
@@ -138,7 +134,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		if (n == 0) {
 			continue;
 		}
-		pthread_mutex_lock(&lock);
+		
 		n = 1;
 		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
 		
@@ -152,7 +148,6 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 			// check if it is request to server
 			handlePacketAtDestinationNode(&ph, unixDomainFd);
 		}
-		pthread_mutex_unlock(&lock);
 	}
 }
 
@@ -174,16 +169,8 @@ void fillInterfaces() {
 	ifHead = malloc(sizeof(NetworkInterface));
 	NetworkInterface* niPtr = ifHead;
 
-	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
-		/*
-		if( (strcmp(hwa->if_name, "lo") ==0 ) || (strcmp(hwa->if_name, "eth0") == 0) ){
-			continue;
-		}
-*/
-
-//		printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");		
+	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {	
 		if ( (sa = hwa->ip_addr) != NULL)
-//			printf("         IP addr = %s\n", Sock_ntop_host(sa, sizeof(*sa)));				
 		prflag = 0;
 		i = 0;
 		do {
@@ -206,21 +193,17 @@ void fillInterfaces() {
 		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
 
 		if (prflag) {
-//			printf("         HW addr = ");
 			ptr = hwa->if_haddr;
 			i = IF_HADDR;
 			int j;
 			do {
 				j = IF_HADDR - i;
 				niPtr->macAddress[j] = *ptr++ & 0xff;
-
-//				printf("%.2x%s", *ptr++ & 0xff, (i == 1) ? " " : ":");
 			} while (--i > 0);
 
 		}
 
 		niPtr->interfaceIndex = hwa->if_index;
-//		printf("\n         interface index = %d\n\n", hwa->if_index);
 	}
 
 	free_hwa_info(hwahead);
@@ -244,28 +227,28 @@ NetworkInterface* getCurrentNodeInterface() {
 
 // We fill srcPort from eth0 interface
 int addCurrentNodeAddressAsSource(PayloadHdr* ph) {
-	//pthread_mutex_lock(&lock);
+	lockm();
 
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
 	if (nodeIf == NULL) {
 		printf("%s Error: client node doesn't have eth0\n", ut());
-		
+		unlockm();		
 		return 0;
 	}
 	ph->srcIp = inet_addr(nodeIf->ipAddr);
-	ph->srcPort = newClientPortNumber++;
-	
-	//pthread_mutex_unlock(&lock);
+	ph->srcPort = newClientPortNumber++;	
+	unlockm();
 	return 1;
 }
 
 
 int handleLocalDestMode(PayloadHdr* ph) {
-	//pthread_mutex_lock(&lock);
+	lockm();
 
 	NetworkInterface* nodeIf = getCurrentNodeInterface();
 	if (nodeIf == NULL) {
 		printf("%s Error: client node doesn't have eth0\n", ut());
+		unlockm();
 		return 0;
 	}
 	// we check the passcode
@@ -274,7 +257,7 @@ int handleLocalDestMode(PayloadHdr* ph) {
 		ph->destIp = inet_addr(nodeIf->ipAddr);		
 	}
 	
-	//pthread_mutex_unlock(&lock);
+	unlockm();
 }
 
 // Handles scenario when the packet arrived at destination
@@ -290,36 +273,34 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 		
 		buf = packPayload(ph, &bufLen);
 
-		//pthread_mutex_lock(&lock);
+		lockm();
 		printf("%s:Sending to a server UNIX file %s the buffer message %s...", ut(), appAddr.sun_path, ph->msg);
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
-			//pthread_mutex_unlock(&lock);
+			unlockm();
 			free(buf);
 			return;
 		} 
 		printOK();
 		free(buf);
-		//pthread_mutex_unlock(&lock);
-		
-		return;
+		unlockm();
 	}
 
 	if (callbackClientName != NULL) {
 		appAddr = createSockAddrUn(callbackClientName);			
 		buf = packPayload(ph, &bufLen);
 
-		//pthread_mutex_lock(&lock);
+		lockm();
 		printf("%s Sending to a client Unix file %s message %s...", ut(), appAddr.sun_path, ph->msg);		
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
-			//pthread_mutex_unlock(&lock);
+			unlockm();
 			free(buf);
 			return;
 		}
 		printOK();
 		free(buf);		
-		//pthread_mutex_unlock(&lock);
+		unlockm();
 		return;
 	}
 	printf("Callback filename for client is NULL\n");	

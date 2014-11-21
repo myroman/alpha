@@ -43,5 +43,8 @@ char* cpyAndMovePtr2(unsigned char* destPtr, const char* src);
 char* addDlm2(unsigned char* destPtr);
 char* itostr2(int val);
 
+void lockm();
+void unlockm();
+
 #define PROTOCOL_NUMBER 51235
 #endif
