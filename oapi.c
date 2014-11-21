@@ -2,6 +2,7 @@
 #include "misc.h"
 #include "debug.h"
 #include "oapi.h"
+#include "payloadHdr.h"
 
 SockAddrUn createSockAddrUn(const char* filename){
 	SockAddrUn addr;
@@ -46,39 +47,31 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 		return -1;
 	}
 
-	//Serialization stage
+	//Packing stage
+	PayloadHdr ph;
 
-	char* serialized = malloc(MAXLINE);
-
-	char* ptrPaste = serialized;
-	char* destPortS = itostr(destPort);	
-	char* forceRed = itostr(forceRediscovery);	
-	char* msgType;
+	bzero(&ph, sizeof(ph));
 	if (destPort == SRV_PORT_NUMBER) {
-		msgType = itostr(CLIENT_MSG_TYPE);
+		ph.msgType = CLIENT_MSG_TYPE;
 	} else {
-		msgType = itostr(SRV_MSG_TYPE);
+		ph.msgType = SRV_MSG_TYPE;
 	}
-	
-	ptrPaste = cpyAndMovePtr(ptrPaste, msgType);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, destIpAddr);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, destPortS);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, msg);
-	ptrPaste = addDlm(ptrPaste);
-	ptrPaste = cpyAndMovePtr(ptrPaste, forceRed);
+	ph.forceRediscovery = forceRediscovery;	
+	ph.srcIp = inet_addr("127.1.1.1");
 
-	ptrPaste = cpyAndMovePtr(ptrPaste, "\0");
-	free(destPortS);
-	free(forceRed);
-	free(msgType);
-	debug("Serialized into byte array: %s", serialized);
+	ph.destIp = inet_addr("0.1.2.3");
+	ph.destPort = destPort;
+	ph.msg = malloc(strlen(msg));	
+	strcpy(ph.msg, msg);	
+
+	uint32_t bufLen = 0;
+	void* packedBuf = packPayload(&ph, &bufLen);	
 	
 	SockAddrUn addr = createSockAddrUn(ODR_UNIX_PATH);
-	sendto(callbackFd, serialized, strlen(serialized), 0, (SA *)&addr, sizeof(addr));
-	free(serialized);
+	debug("Sending packed buffer, length=%u...", bufLen);	
+	int n = sendto(callbackFd, packedBuf, bufLen, 0, (SA *)&addr, sizeof(addr));
+	debug("Sent it, result=%d", n);
+	free(packedBuf);
 	return 0;
 }
 
@@ -95,60 +88,26 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 		maxfd = sockfd+1;
 		select(maxfd, &set, NULL, NULL, &tv);
 		if(FD_ISSET(sockfd, &set)){
-			char* buf = malloc(MAXLINE);
-			int length = recvfrom(sockfd, buf, MAXLINE, 0, NULL, NULL);
+			// let's choose some smaller value than 1500 bytes.
+			char* buf = malloc(ETHFR_MAXDATA_LEN);
+			int length = recvfrom(sockfd, buf, ETHFR_MAXDATA_LEN, 0, NULL, NULL);
 			if (length == -1) { 
 				debug("%s\n", "Length=-1");
 				free(buf);
 				return length;
 			}			
 
-			debug("Got message %s", buf);
-			SendDto* dto = malloc(sizeof(SendDto));
-			deserializeApiReq2(buf, MAXLINE, dto);
-			strcpy(srcIpAddr, dto->srcIp);
-			*srcPort = dto->srcPort;
-			debug("dto msg:%s", dto->msg);
-			strcpy(msg, dto->msg);
-			debug("after deser, %s:%d", dto->srcIp, dto->srcPort);
-			free(dto->msg);
-			free(dto);
+			debug("Got packed payload, length = %d", length);
+			PayloadHdr* ph = unpackPayload(buf);
+			strcpy(srcIpAddr, ph->srcIp);
+			*srcPort = ph->srcPort;
+			strcpy(msg, ph->msg);
+
 			free(buf);
+			free(ph);
 			return length;
 		}
 		debug("Nothing read. timeout.");
 		return -1;//timeout
 	}
-}
-
-int deserializeApiReq2(char* buffer, size_t bufLen, SendDto* dto) {
-	char* s = malloc(bufLen);
-	strcpy(s, buffer);
-
-	char *tok = NULL, *delim = "|";
-    int len = 0, member = 0;      	
-    tok = strtok(s, delim);
-    free(s);
-	while (tok) {
-    	switch(member++){
-        	case 0:
-        		dto->msgType = atoi(tok);
-        		break;
-			case 1:
-				strcpy(dto->srcIp, tok);
-				break;
-			case 2:
-				dto->srcPort = atoi(tok);
-				break;
-			case 3:
-				dto->msg = malloc(strlen(tok));
-				strcpy(dto->msg, tok);
-				break;
-			case 4:
-				dto->forceRedisc = atoi(tok);
-				break;
-        }
-        tok = strtok(NULL, delim);
-    } 
-    return 1;
 }
