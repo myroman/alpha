@@ -3,6 +3,8 @@
 #include "debug.h"
 #include "odrProc.h"
 #include "oapi.h"
+#include "hw_addrs.h"
+#include "payloadHdr.h"
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
@@ -45,7 +47,6 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	}
 	int payloadLength;
 	void* payload = packPayload(ph, &payloadLength);
-	debug("Hey");
 	memcpy(data, payload, payloadLength);
 	free(payload);
 	
@@ -81,7 +82,7 @@ int odrRecv(PayloadHdr* ph) {
 		free(buffer);
 		return 0;
 	}	
-
+	debug("ODR: Received PF_PACKET, length=%d", length);
 	unpackPayload(buffer + 14, ph);
 	free(buffer);	
 	return 1;	
