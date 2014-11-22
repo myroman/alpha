@@ -75,7 +75,7 @@ int odrRecv(int odrSockFd, PayloadHdr* ph, void* buffer) {
 		return 0;
 	}
 	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {				
-		printf("%d,", ntohs(senderAddr.sll_protocol));
+		//printf("%d,", ntohs(senderAddr.sll_protocol));
 		return 0;
 	}	
 
