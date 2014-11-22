@@ -17,8 +17,14 @@ struct VM_IP{
 VM_IP*  vmInfo;
 void sig_int(int signo) {
 	unlink(listenFn);
-	printf("I'm cleaned up %s before termination\n", listenFn);
+	printf("I'm cleaned up socket file %s before termination\n", listenFn);
 	exit(0);
+}
+void sig_sev(int signo){
+	unlink(listenFn);
+	printf("SEG FAULT. CLeaned up unix socket file %s\n", listenFn);
+	exit(0);
+
 }
 
 int populateVmInfo(){
@@ -173,6 +179,7 @@ int main(int argc, char **argv)
 	if ( (lstFd = socket(AF_LOCAL, SOCK_DGRAM, 0)) < 0)
 		err_sys("socket error");
 	Signal(SIGINT, sig_int);
+	Signal(SIGSEGV, sig_sev);
 
 	populateVmInfo();
 	getNodeName();
@@ -191,6 +198,7 @@ int main(int argc, char **argv)
 	SockAddrUn addr = createSockAddrUn(listenFn);
 	bind(lstFd, (SA *)&addr, sizeof(addr));
 	
+
 	printf("**** Welcome to the Time Client. ****\n");
 
 	while(1){
