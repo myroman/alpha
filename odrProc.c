@@ -5,7 +5,7 @@
 #include "misc.h"
 #include "hw_addrs.h"
 #include "payloadHdr.h"
-#include <sys/socket.h>
+#include <sys/socket.h>cd printf
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
@@ -60,6 +60,7 @@ int main(int argc, char **argv) {
 	printf("ODR terminated\n");
 	free(callbackClientName);
 	free(ifHead);
+	close(unixDomainFd);
 }
 
 void* respondToHostRequestsRoutine (void *arg) {
@@ -115,6 +116,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		odrSend(odrSockFd, &payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 	}
 	free(buffer);
+	close(odrSockFd);
 	pthread_exit(0);
 }
 
@@ -164,6 +166,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		unlockm();
 	}
 	free(buffer);
+	close(rawSockFd);
 }
 
 char* nt() {
@@ -184,6 +187,8 @@ void fillInterfaces() {
 	NetworkInterface* niPtr = ifHead;
 
 	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
+		printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
+		
 		if ( (sa = hwa->ip_addr) != NULL)
 		prflag = 0;
 		i = 0;
