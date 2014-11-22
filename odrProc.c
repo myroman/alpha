@@ -5,7 +5,7 @@
 #include "misc.h"
 #include "hw_addrs.h"
 #include "payloadHdr.h"
-#include <sys/socket.h>cd printf
+#include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 	
 	printf("*** List of interfaces ***\n");
 	for(;ptr != NULL;ptr = ptr->next) {
-		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->isEth0);
+		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, printIPHuman(ptr->ipAddr), ptr->isEth0);
 		int i=0;
 		for(i=0;i < 6; ++i) {
 			printf("%.2x:", ptr->macAddress[i]);
@@ -63,9 +63,7 @@ int main(int argc, char **argv) {
 	close(unixDomainFd);
 }
 
-void* respondToHostRequestsRoutine (void *arg) {
-	socklen_t clilen;
-	
+void* respondToHostRequestsRoutine (void *arg) {	
 	int unixDomainFd = (intptr_t)arg,
 		odrSockFd = createOdrSocket();	
 	void* buffer = malloc(MAXLINE);//change to 1500 or less
@@ -97,11 +95,11 @@ void* respondToHostRequestsRoutine (void *arg) {
 		}						
 		unlockm();
 
-		payload.srcIp = inet_addr(currentNode->ipAddr);				
+		payload.srcIp = currentNode->ipAddr;				
 		// we check the passcode in case client choose 'loc'
 		if (payload.destIp == LOCAL_INET_IP){
 			debug("DestIP is local!");
-			payload.destIp = inet_addr(currentNode->ipAddr);		
+			payload.destIp = currentNode->ipAddr;
 		}
 
 		if (payload.msgType == CLIENT_MSG_TYPE) {
@@ -155,7 +153,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		
 		// compare dest IP from request and the node's current IP
 		//TODO: USE inet IP for comparison
-		int atDestination = atDestination = (strcmp(currentNode->ipAddr, printIPHuman(ph.destIp)) == 0);
+		int atDestination = currentNode->ipAddr == ph.destIp;
 		if (atDestination == 0) {
 			printf("%s We're at intermediate node with IP=%s", nt(), printIPHuman(ph.destIp));
 		} else {
@@ -185,7 +183,7 @@ void fillInterfaces() {
 
 	ifHead = malloc(sizeof(NetworkInterface));
 	NetworkInterface* niPtr = ifHead;
-
+	niPtr->next = NULL;
 	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
 		printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
 		
@@ -203,13 +201,16 @@ void fillInterfaces() {
 		if (hwa != hwahead) {
 			niPtr->next = malloc(sizeof(NetworkInterface));
 			niPtr = niPtr->next;
+			niPtr->next = NULL;
 		}
 
 		if ((strcmp(hwa->if_name, "eth0") == 0)||(strcmp(hwa->if_name, "wlan0") == 0)) {
 			niPtr->isEth0 = 1;
 			printf("Etho is found\n");
 		}
-		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
+
+		char* s = Sock_ntop_host(sa, sizeof(*sa));
+		niPtr->ipAddr = inet_addr(s);
 
 		if (prflag) {
 			ptr = hwa->if_haddr;
@@ -257,7 +258,6 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 		
 		buf = packPayload(ph, &bufLen);
 
-		//pthread_mutex_lock(&lock);
 		printf("%s:Sending to a server UNIX file %s the buffer message %s...", ut(), appAddr.sun_path, ph->msg);
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
@@ -272,8 +272,7 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 	if (callbackClientName != NULL) {
 		appAddr = createSockAddrUn(callbackClientName);			
 		buf = packPayload(ph, &bufLen);
-
-		//pthread_mutex_lock(&lock);
+		
 		printf("%s Sending to a client Unix file %s message %s...", ut(), appAddr.sun_path, ph->msg);		
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
