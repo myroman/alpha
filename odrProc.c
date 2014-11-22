@@ -151,8 +151,6 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		lockm();
 		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
 		
-		// compare dest IP from request and the node's current IP
-		//TODO: USE inet IP for comparison
 		int atDestination = currentNode->ipAddr == ph.destIp;
 		if (atDestination == 0) {
 			printf("%s We're at intermediate node with IP=%s", nt(), printIPHuman(ph.destIp));
@@ -272,7 +270,7 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 	if (callbackClientName != NULL) {
 		appAddr = createSockAddrUn(callbackClientName);			
 		buf = packPayload(ph, &bufLen);
-		
+
 		printf("%s Sending to a client Unix file %s message %s...", ut(), appAddr.sun_path, ph->msg);		
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();

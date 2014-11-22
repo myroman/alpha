@@ -2,15 +2,10 @@
 #include <sys/time.h>
 #include "debug.h"
 #include "routingTable.h"
-
+#include "misc.h"
 RouteEntry *headEntry = NULL;
 RouteEntry *tailEntry = NULL;
 
-char * printIPHuman(in_addr_t ip){
-    struct in_addr ipIa;
-    ipIa.s_addr = ip;
-    return inet_ntoa(ipIa);
-}
 int addRouteEntry(in_addr_t dIP, char * nh, int hc){
 	int ret = 0;
 	//Malloc the space for the new struct
@@ -112,6 +107,7 @@ void printRoutingTable(){
 		ptr = ptr->right;
 	}
 }
+/*
 int main (){
     //addRouteEntry("129.49.233.217", "bc:77:37:27:94:03", 0);
     //addRouteEntry("129.49.233.218", "bc:77:37:27:94:03", 0);
@@ -133,3 +129,4 @@ int main (){
 
     printRoutingTable();
 }
+*/
