@@ -30,6 +30,9 @@ odrImpl.o: odrImpl.c
 
 routingTable.o: routingTable.c
 	${CC} ${FLAGS} -c routingTable.c ${UNP}
+#routingTable: routingTable.o
+#	${CC} ${FLAGS} -o $@ misc.o routingTable.o ${LIBS}
+
 
 portPath.o: portPath.c
 	${CC} ${FLAGS} -c portPath.c ${UNP}

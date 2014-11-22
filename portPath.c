@@ -4,7 +4,7 @@
 PortPath *headEntryPort = NULL;
 PortPath *tailEntryPort = NULL;
 
-int addPortPath(char * fpath, int port, int w){
+int addPortPath(char * fpath, int port, int fd ,int w){
 	int ret = 0;
 	//Malloc the space for the new struct
     PortPath *newEntry = (PortPath *) malloc(sizeof( struct PortPath ));
@@ -20,6 +20,7 @@ int addPortPath(char * fpath, int port, int w){
     memcpy(newEntry->file_path, fpath, PATH_LENGTH);
     newEntry->port_number = port;
     newEntry->well_known = w;
+    newEntry->fd = fd;
     if(headEntryPort == NULL){
     	headEntryPort = newEntry;
     	newEntry->left = NULL;
@@ -107,26 +108,26 @@ void printPortTable(){
 	int index = 0;
 	while(ptr != NULL){
 
-		printf("%d: Sun Path filename: %s, Port Number: %d, Well Know: %d\n", index, ptr->file_path, ptr->port_number, ptr->well_known);
+		printf("%d: Sun Path filename: %s, Port Number: %d, File Descriptor: %u, Well Know: %d\n", index, ptr->file_path, ptr->port_number, ptr->fd ,ptr->well_known);
 		index++;
 		ptr = ptr->right;
 	}
 }
 
 int main(){
-	addPortPath("test.c", 1024, 0);
-	addPortPath("test.cpp", 1025, 1);
+	addPortPath("test.c", 1024, 10,0);
+	addPortPath("test.cpp", 1025, 11,1);
 
 	printPortTable();
-	sleep(6);
+	sleep(1);
 
 	PortPath *p = findAndUpdatePort(1025);
 	PortPath *p2 = findAndUpdatePath("test.c");
 
 	if(p!= NULL)
-		printf("%s, %d\n", p->file_path, p->port_number);
-	if(p2!=NULL)
-		printf("%s, %d\n", p2->file_path, p2->port_number);
+		printf("%s, %u, %u\n", p->file_path, p->port_number, p->fd);
+	if(p2!=NULL) 
+		printf("%s, %u, %u\n", p2->file_path, p2->port_number, p2->fd);
 
 	printPortTable();
 }

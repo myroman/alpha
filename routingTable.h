@@ -4,7 +4,7 @@
 #include <sys/time.h>
 
 #define	IF_NAME		16	/* same as IFNAMSIZ    in <net/if.h> */
-#define	IF_HADDR	 30	/* same as IFHWADDRLEN in <net/if.h> */
+#define	IF_HADDR	 30	/* sa	me as IFHWADDRLEN in <net/if.h> */
 #define ROUTING_ENTRY_STALE 2
 
 typedef struct RouteEntry RouteEntry;//typeDef for the Clinet Info object
@@ -21,12 +21,13 @@ struct RouteEntry{
 
 
 //int addRouteEntry(char * dIP, char * nh, int hc);
-int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex);
-int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex);
+int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex, RouteEntry **headEntry, RouteEntry **tailEntry);
+int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex, RouteEntry **headEntry, RouteEntry **tailEntry);
 int checkTime(struct timeval * inspect);
-void removeRoutingEntry();
+void removeRoutingEntry(RouteEntry **headEntry, RouteEntry **tailEntry);
 //RouteEntry* findAndUpdateRouteEntry(char * destIP);
-RouteEntry* findRouteEntry(in_addr_t destIP);
-void printRoutingTable();
+
+RouteEntry* findRouteEntry(in_addr_t destIP, RouteEntry **headEntry, RouteEntry **tailEntry);
+void printRoutingTable(RouteEntry *headEntry, RouteEntry *tailEntry);
 
 #endif

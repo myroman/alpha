@@ -10,6 +10,7 @@ typedef struct PortPath PortPath;//typeDef for the Clinet Info object
 struct PortPath{
 	char file_path [PATH_LENGTH];
 	int port_number;
+	int fd;
 	int well_known;
 	struct timeval entryTime;
 	
@@ -18,7 +19,7 @@ struct PortPath{
 };
 
 
-int addPortPath(char * fpath, int port, int w);
+int addPortPath(char * fpath, int port, int fd,int w);
 int checkTime(struct timeval * inspect);
 void removePortEntry();
 PortPath* findAndUpdatePath(char * fp);

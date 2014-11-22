@@ -3,16 +3,16 @@
 #include "debug.h"
 #include "routingTable.h"
 #include "misc.h"
-RouteEntry *headEntry = NULL;
-RouteEntry *tailEntry = NULL;
-int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex){
-    removeRoutingEntry();//removes any stale entries in the routing table
+int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex, RouteEntry **headEntry, RouteEntry **tailEntry){
+
+    //removeRoutingEntry(&headEntry, &tailEntry);//removes any stale entries in the routing table
     //Then we try to go and find the entry in our rooting table
     int ret;
-    RouteEntry * ptr =  findRouteEntry(sIP);
+    RouteEntry * ptr =  findRouteEntry(sIP, headEntry, tailEntry);
     if(ptr == NULL){
         //Route to IP was not found we insert it into the table
-        ret = addRouteEntry(sIP, nh, hc, intFIndex);
+        ret = addRouteEntry(sIP, nh, hc, intFIndex, headEntry, tailEntry);
+        debug("Adding route entry");
     }
     else{
         if(ptr->hop_count == hc){
@@ -42,7 +42,7 @@ int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex){
         }
     }
 }
-int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex){
+int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex, RouteEntry **headEntry, RouteEntry **tailEntry){
 	int ret = 0;
 	//Malloc the space for the new struct
     RouteEntry *newRoute = (RouteEntry *) malloc(sizeof( struct RouteEntry ));
@@ -59,17 +59,19 @@ int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex){
     memcpy(newRoute->next_hop, nh, IF_HADDR);
     newRoute->hop_count = hc;
     newRoute->interfaceInd = intFIndex;
-    if(headEntry == NULL){
-    	headEntry = newRoute;
+
+    if(*headEntry == NULL){
+    	*headEntry = newRoute;
     	newRoute->left = NULL;
     	newRoute->right = NULL;
-    	tailEntry = newRoute;
+    	*tailEntry = newRoute;
     }
     else{
-    	tailEntry->right = newRoute;
-    	newRoute->left = tailEntry;
-    	tailEntry = newRoute;
+    	(*tailEntry)->right = newRoute;
+    	newRoute->left = *tailEntry;
+    	*tailEntry = newRoute;
     }
+    //debug("%u, %u", (*tailEntry)->interfaceInd, (*tailEntry)->hop_count);
     return 1;
 }
 
@@ -85,28 +87,28 @@ int checkTime(struct timeval * inspect){
 
 }
 
-void removeRoutingEntry(){
-    RouteEntry *ptr = headEntry;
+void removeRoutingEntry(RouteEntry **headEntry, RouteEntry **tailEntry){
+    RouteEntry *ptr = *headEntry;
     while(ptr != NULL){
         if(checkTime(&(ptr->entryTime)) == -1){
             printf("Removed Routing entry because it was stale\n");
             if(ptr->left == NULL && ptr->right != NULL){
                 //HEAD
                 debug("HEAD Removed");
-                headEntry = ptr->right;
-                headEntry->left = NULL;
+                *headEntry = ptr->right;
+                (*headEntry)->left = NULL;
             }
             else if(ptr->left != NULL && ptr->right == NULL){
                 //TAIL
                 debug("TAIL Removed\n");
-                tailEntry = ptr->left;
-                tailEntry->right = NULL;
+                *tailEntry = ptr->left;
+                (*tailEntry)->right = NULL;
             }
             else if(ptr->left == NULL && ptr->right == NULL){
                 //HEAD_TAIL
                 debug("HEAD_TAIL Removed\n");
-                headEntry = NULL;
-                tailEntry = NULL;
+                *headEntry = NULL;
+                (*tailEntry) = NULL;
             }
             else{
                 debug("MIDDLE Removed\n");
@@ -119,10 +121,9 @@ void removeRoutingEntry(){
     }
 }
 
-RouteEntry* findRouteEntry(in_addr_t destIP){
-    RouteEntry * ptr = headEntry;
-    ptr = headEntry;
-    removeRoutingEntry();
+RouteEntry* findRouteEntry(in_addr_t destIP, RouteEntry **headEntry, RouteEntry **tailEntry){
+    RouteEntry * ptr = *headEntry;
+    removeRoutingEntry(headEntry, tailEntry);
     while(ptr != NULL){
         //if(strcmp(ptr->dest_ip, destIP) ==0)
         if(destIP == ptr->dest_ip)
@@ -133,32 +134,35 @@ RouteEntry* findRouteEntry(in_addr_t destIP){
 }
 
 
-void printRoutingTable(){
+void printRoutingTable(RouteEntry *headEntry, RouteEntry *tailEntry){
 	RouteEntry * ptr = headEntry;
 	int index = 0;
 	while(ptr != NULL){
         //char * destIP = inet_ntoa(ptr->dest_ip);
-		printf("%d: destadsfIP: %s, Next Hop MAC: %s, Hop Count : %u, Interface Index: %u, Entry Time: <%ld.%06ld>\n", index, printIPHuman(ptr->dest_ip), ptr->next_hop, ptr->hop_count, ptr->interfaceInd,(long) ptr->entryTime.tv_sec, (long) ptr->entryTime.tv_usec);
+		printf("%d: destIP: %s, Next Hop MAC: %s, Hop Count : %u, Interface Index: %u, Entry Time: <%ld.%06ld>\n", index, printIPHuman(ptr->dest_ip), ptr->next_hop, ptr->hop_count, ptr->interfaceInd,(long) ptr->entryTime.tv_sec, (long) ptr->entryTime.tv_usec);
 		index++;
 		ptr = ptr->right;
 	}
 }
 
-/*int main (){
+int main (){
     //addRouteEntry("129.49.233.217", "bc:77:37:27:94:03", 0);
     //addRouteEntry("129.49.233.218", "bc:77:37:27:94:03", 0);
-    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 10, 1);
-    insertOrUpdateRouteEntry(16909567, "bc:77:37:27:94:03", 0, 2);
-    debug("here");
-    printRoutingTable();
+    RouteEntry *headEntry=NULL; //= malloc(sizeof(RouteEntry));//NULL;
+    RouteEntry *tailEntry=NULL; //= malloc(sizeof(RouteEntry));//NULL;
+    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 10, 1, &headEntry, &tailEntry);
+    insertOrUpdateRouteEntry(16909567, "bc:77:37:27:94:03", 0, 2,  &headEntry, &tailEntry);
 
-    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 1, 1);
-    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 2, 1);
-    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 1, 1);
+    debug("here");
+    printRoutingTable(headEntry, tailEntry);
+
+    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 1, 1, &headEntry, &tailEntry);
+    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 2, 1, &headEntry, &tailEntry);
+    insertOrUpdateRouteEntry(16777343, "bc:77:37:27:94:03", 1, 1, &headEntry, &tailEntry);
     sleep(5);
 
 
-    RouteEntry * p = findRouteEntry(16909567);
+    RouteEntry * p = findRouteEntry(16909567, &headEntry, &tailEntry);
 
     if(p != NULL){
         printf("DESTIP %s, MAC %s, HopCount %d\n", printIPHuman(p->dest_ip), p->next_hop, p->hop_count);
@@ -167,5 +171,6 @@ void printRoutingTable(){
         printf("Not found\n");
     }
 
-    printRoutingTable();
-}*/
+    printRoutingTable(headEntry, tailEntry);
+    
+}
