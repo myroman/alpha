@@ -11,6 +11,12 @@
 #include <linux/if_arp.h>
 
 int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
+	printf("ODR: Gonna send from MAC ");
+	printMac(srcMac);
+	printf(" to ");
+	printMac(destMac);
+	printf("\n");
+
 	SockAddrLl socket_address;/*target address*/	
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*buffer for ethernet frame*/	
 	unsigned char* etherhead = buffer;/*pointer to ethenet header*/	
@@ -36,6 +42,8 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)destMac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)srcMac, ETH_ALEN);
+	int16_t prot = 0x1C9;
+	memcpy((void*)buffer+2*ETH_ALEN, prot, 2);
 	eh->h_proto = 0x00;
 
 	// SENDING PART
@@ -51,6 +59,7 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	free(payload);
 	
 	/*send the packet*/
+	
 	printf("ODR:sending PF_PACKET with msg %s...", ph->msg);
 	int res = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (res == -1) { 
@@ -86,4 +95,11 @@ int odrRecv(PayloadHdr* ph) {
 	unpackPayload(buffer + 14, ph);
 	free(buffer);	
 	return 1;	
+}
+
+void printMac(unsigned char mac[6]) {
+	int i=0;
+	for(i=0;i < 6; ++i) {
+		printf("%.2x:", mac[i]);
+	}
 }

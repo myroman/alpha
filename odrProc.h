@@ -43,5 +43,6 @@ char* cpyAndMovePtr2(unsigned char* destPtr, const char* src);
 char* addDlm2(unsigned char* destPtr);
 char* itostr2(int val);
 
+void printMac(unsigned char mac[6]);
 #define PROTOCOL_NUMBER 51235
 #endif

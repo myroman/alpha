@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 	for(;ptr != NULL;ptr = ptr->next) {
 		printf("Interface #%d, IP:%s, eth0:%d,HW_addr:", ptr->interfaceIndex, ptr->ipAddr, ptr->isEth0);
 		int i=0;
-		for(i=0;i<6;++i) {
+		for(i=0;i < 6; ++i) {
 			printf("%.2x:", ptr->macAddress[i]);
 		}
 		printf("\n");
@@ -84,9 +84,6 @@ void* respondToHostRequestsRoutine (void *arg) {
 		debug("%s Received buffer, length=%d", ut(), length);
 
 		unpackPayload(buffer, &payload);	
-		debug("h");	
-		
-		debug("h");
 		//print info
 		printf("%s", ut());
 		printPayloadContents(&payload);
@@ -114,7 +111,8 @@ void* respondToHostRequestsRoutine (void *arg) {
 			unlockm();
 			free(buffer);
 			return;
-		}					
+		}						
+
 		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 		unlockm();
 	}
@@ -127,9 +125,9 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		unixDomainFd = (intptr_t)arg;	
 	
 	int z = 0;
-	//pthread_mutex_lock(&lock);
+	lockm();
 	NetworkInterface* currentNode = getCurrentNodeInterface();	
-	//pthread_mutex_unlock(&lock);
+	unlockm();
 	if (currentNode == NULL) {
 		printf("Current node is null, return\n");
 		return;
