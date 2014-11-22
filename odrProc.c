@@ -23,10 +23,6 @@ void unlockm() {
 	pthread_mutex_unlock(&lock);
 }
 
-// 2 MACs of Vm1 and Vm2
-//00:0c:29:49:3f:5b vm1
-//00:0c:29:d9:08:ec vm2
-
 /* Listen to: 1) UNIX domain sockets for messages from client/server 
 2) PF_PACKETs from another ODR
 1) When received UNIX - deserialize the data into arguments which they sent: for msg_send or msg_recv.
@@ -69,18 +65,20 @@ int main(int argc, char **argv) {
 void* respondToHostRequestsRoutine (void *arg) {
 	socklen_t clilen;
 	
-	int unixDomainFd = (intptr_t)arg;	
+	int unixDomainFd = (intptr_t)arg,
+		odrSockFd = createOdrSocket();	
 	void* buffer = malloc(MAXLINE);//change to 1500 or less
 	SockAddrUn senderAddr;
 	PayloadHdr payload;
-	
+	if (odrSockFd == -1) {
+		return;
+	}
 	for(;;) {
-		printf("%s Waiting from %d...\n", ut(), unixDomainFd);
-		int l = sizeof(senderAddr), length;
+		printf("%s Waiting from UNIX socket...\n", ut());
+		int l = sizeof(struct sockaddr_un), length;
 		if ((length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l)) == -1) {			
 			continue;
 		}
-		lockm();
 		debug("%s Received buffer, length=%d", ut(), length);
 
 		unpackPayload(buffer, &payload);	
@@ -88,23 +86,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		printf("%s", ut());
 		printPayloadContents(&payload);
 
-		if (addCurrentNodeAddressAsSource(&payload) == 0) {			
-			unlockm();
-			continue;
-		}
-
-		handleLocalDestMode(&payload);		
-
-		if (payload.msgType == CLIENT_MSG_TYPE) {
-			strcpy(callbackClientName, senderAddr.sun_path);			
-			
-			printf("%s Got a msg from client (filepath=%s)\n", ut(), senderAddr.sun_path);			
-		} else {
-			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
-		}
-		
-		// Let's lock to show consistent output
-		
+		lockm();		
 		NetworkInterface* currentNode = getCurrentNodeInterface();
 		if (currentNode == NULL) {
 			debug("Current node if is NULL.Exit");
@@ -112,9 +94,25 @@ void* respondToHostRequestsRoutine (void *arg) {
 			free(buffer);
 			return;
 		}						
-
-		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 		unlockm();
+
+		payload.srcIp = inet_addr(currentNode->ipAddr);				
+		// we check the passcode in case client choose 'loc'
+		if (payload.destIp == LOCAL_INET_IP){
+			debug("DestIP is local!");
+			payload.destIp = inet_addr(currentNode->ipAddr);		
+		}
+
+		if (payload.msgType == CLIENT_MSG_TYPE) {
+			payload.srcPort = newClientPortNumber++;
+
+			strcpy(callbackClientName, senderAddr.sun_path);						
+			printf("%s Got a msg from client (filepath=%s)\n", ut(), senderAddr.sun_path);			
+		} else {
+			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
+		}		
+		// Let's lock to show consistent output		
+		odrSend(odrSockFd, &payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 	}
 	free(buffer);
 	pthread_exit(0);
@@ -122,29 +120,35 @@ void* respondToHostRequestsRoutine (void *arg) {
 
 void* respondToNetworkRequestsRoutine (void *arg) {
 	int srcPort, 
-		unixDomainFd = (intptr_t)arg;	
+		unixDomainFd = (intptr_t)arg,
+		rawSockFd = createOdrSocket();	
+	if (rawSockFd == -1) {
+		return;
+	}
 	
-	int z = 0;
+	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*Buffer for ethernet frame*/
+	
 	lockm();
 	NetworkInterface* currentNode = getCurrentNodeInterface();	
 	unlockm();
+
 	if (currentNode == NULL) {
 		printf("Current node is null, return\n");
 		return;
 	}
+
 	PayloadHdr ph;
 	int n = 1; //flag handling bad incoming packets
 	for(;;) {
 		if (n != 0) {
-			printf("%s waiting for PF_PACKET..\n", nt());
+			printf("%s waiting for PF_PACKETs..\n", nt());
 		}
 		
-		n = odrRecv(&ph);
-		if (n == 0) {
+		if ((n = odrRecv(rawSockFd, &ph, buffer)) == 0) {
 			continue;
 		}
+		
 		lockm();
-		n = 1;
 		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
 		
 		// compare dest IP from request and the node's current IP
@@ -153,12 +157,13 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		if (atDestination == 0) {
 			printf("%s We're at intermediate node with IP=%s", nt(), printIPHuman(ph.destIp));
 		} else {
-			printf("%s We're at dest node with IP=%s\n", nt(), printIPHuman(ph.destIp));
+			printf("%s We're at destination node with IP=%s\n", nt(), printIPHuman(ph.destIp));
 			// check if it is request to server
 			handlePacketAtDestinationNode(&ph, unixDomainFd);
 		}
 		unlockm();
 	}
+	free(buffer);
 }
 
 char* nt() {
@@ -175,20 +180,11 @@ void fillInterfaces() {
 	char   *ptr;
 	int    i, prflag;
 
-	//unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x8a, 0x83, 0x53};/*other host MAC address*/
 	ifHead = malloc(sizeof(NetworkInterface));
 	NetworkInterface* niPtr = ifHead;
 
 	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
-		/*
-		if( (strcmp(hwa->if_name, "lo") ==0 ) || (strcmp(hwa->if_name, "eth0") == 0) ){
-			continue;
-		}
-*/
-
-//		printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");		
 		if ( (sa = hwa->ip_addr) != NULL)
-//			printf("         IP addr = %s\n", Sock_ntop_host(sa, sizeof(*sa)));				
 		prflag = 0;
 		i = 0;
 		do {
@@ -211,21 +207,17 @@ void fillInterfaces() {
 		strcpy(niPtr->ipAddr, Sock_ntop_host(sa, sizeof(*sa)));
 
 		if (prflag) {
-//			printf("         HW addr = ");
 			ptr = hwa->if_haddr;
 			i = IF_HADDR;
 			int j;
 			do {
 				j = IF_HADDR - i;
-				niPtr->macAddress[j] = *ptr++ & 0xff;
-
-//				printf("%.2x%s", *ptr++ & 0xff, (i == 1) ? " " : ":");
+				niPtr->macAddress[j] = *ptr++ & 0xFF;
 			} while (--i > 0);
 
 		}
 
 		niPtr->interfaceIndex = hwa->if_index;
-//		printf("\n         interface index = %d\n\n", hwa->if_index);
 	}
 
 	free_hwa_info(hwahead);
@@ -247,41 +239,6 @@ NetworkInterface* getCurrentNodeInterface() {
 	return NULL;
 }
 
-// We fill srcPort from eth0 interface
-int addCurrentNodeAddressAsSource(PayloadHdr* ph) {
-	//pthread_mutex_lock(&lock);
-
-	NetworkInterface* nodeIf = getCurrentNodeInterface();
-	if (nodeIf == NULL) {
-		printf("%s Error: client node doesn't have eth0\n", ut());
-		
-		return 0;
-	}
-	ph->srcIp = inet_addr(nodeIf->ipAddr);
-	ph->srcPort = newClientPortNumber++;
-	
-	//pthread_mutex_unlock(&lock);
-	return 1;
-}
-
-
-int handleLocalDestMode(PayloadHdr* ph) {
-	//pthread_mutex_lock(&lock);
-
-	NetworkInterface* nodeIf = getCurrentNodeInterface();
-	if (nodeIf == NULL) {
-		printf("%s Error: client node doesn't have eth0\n", ut());
-		return 0;
-	}
-	// we check the passcode
-	if (ph->destIp == LOCAL_INET_IP){
-		debug("DestIP is local!");
-		ph->destIp = inet_addr(nodeIf->ipAddr);		
-	}
-	
-	//pthread_mutex_unlock(&lock);
-}
-
 // Handles scenario when the packet arrived at destination
 // 2 basic cases: we're at server or client node.
 void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {	
@@ -299,14 +256,11 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 		printf("%s:Sending to a server UNIX file %s the buffer message %s...", ut(), appAddr.sun_path, ph->msg);
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
-			//pthread_mutex_unlock(&lock);
 			free(buf);
 			return;
 		} 
-		printOK();
 		free(buf);
-		//pthread_mutex_unlock(&lock);
-		
+		printOK();		
 		return;
 	}
 
@@ -318,14 +272,21 @@ void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {
 		printf("%s Sending to a client Unix file %s message %s...", ut(), appAddr.sun_path, ph->msg);		
 		if ((res = sendto(unixDomainFd, buf, bufLen, 0, (SA *)&appAddr, sizeof(appAddr))) == -1) {
 			printFailed();
-			//pthread_mutex_unlock(&lock);
 			free(buf);
 			return;
 		}
-		printOK();
 		free(buf);		
-		//pthread_mutex_unlock(&lock);
+		printOK();
 		return;
 	}
 	printf("Callback filename for client is NULL\n");	
+}
+
+int createOdrSocket() {
+	int sd;
+	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+	    printf("Creating ODR socket failed\n");
+	    return -1;
+	}
+	return sd;
 }

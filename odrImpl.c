@@ -10,7 +10,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
+int odrSend(int odrSockFd, PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
 	printf("ODR: Gonna send from MAC ");
 	printMac(srcMac);
 	printf(" to ");
@@ -43,16 +43,10 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	memcpy((void*)buffer, (void*)destMac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)srcMac, ETH_ALEN);
 	int16_t prot = 0x1C9;
-	memcpy((void*)buffer+2*ETH_ALEN, prot, 2);
+	memcpy((void*)buffer+2*ETH_ALEN, &prot, 2);
 	eh->h_proto = 0x00;
 
-	// SENDING PART
-	int sd;
-	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-	    perror ("socket() failed ");
-	    free(buffer);
-	    exit (EXIT_FAILURE);
-	}
+	// SENDING PART	
 	int payloadLength;
 	void* payload = packPayload(ph, &payloadLength);
 	memcpy(data, payload, payloadLength);
@@ -61,7 +55,7 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	/*send the packet*/
 	
 	printf("ODR:sending PF_PACKET with msg %s...", ph->msg);
-	int res = sendto(sd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
+	int res = sendto(odrSockFd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (res == -1) { 
 		printFailed();
 		
@@ -72,28 +66,21 @@ int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], i
 	free(buffer);
 }
 
-int odrRecv(PayloadHdr* ph) {	
-	int sockfd;
-	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-	    printf("%s Socket failed ", nt());
-	    return 0;
-	}
-
+int odrRecv(int odrSockFd, PayloadHdr* ph, void* buffer) {	
 	SockAddrLl senderAddr;	
 	int sz = sizeof(senderAddr);
-	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*Buffer for ethernet frame*/	
-	int length = recvfrom(sockfd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
-	if (length == -1) {		
-		free(buffer);
+	bzero(buffer, ETH_FRAME_LEN);
+	int length = recvfrom(odrSockFd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
+	if (length == -1) {
 		return 0;
 	}
 	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {				
-		free(buffer);
+		printf("%d,", ntohs(senderAddr.sll_protocol));
 		return 0;
 	}	
-	debug("ODR: Received PF_PACKET, length=%d", length);
+
+	debug("\nODR: Received PF_PACKET, length=%d", length);
 	unpackPayload(buffer + 14, ph);
-	free(buffer);	
 	return 1;	
 }
 

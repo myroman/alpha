@@ -20,8 +20,8 @@ char* ut();
 char* nt();
 void fillInterfaces();
 
-int odrSend(PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
-int odrRecv(PayloadHdr*);
+int odrSend(int sockfd, PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
+int odrRecv(int sockfd, PayloadHdr* ph, void* buffer);
 int addCurrentNodeAddressAsSource(PayloadHdr* dto);
 void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd);
 int handleLocalDestMode(PayloadHdr* dto);
@@ -44,5 +44,6 @@ char* addDlm2(unsigned char* destPtr);
 char* itostr2(int val);
 
 void printMac(unsigned char mac[6]);
+int createOdrSocket();
 #define PROTOCOL_NUMBER 51235
 #endif
