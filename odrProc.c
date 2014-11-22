@@ -15,6 +15,13 @@ NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
 int newClientPortNumber = 1024;//seed
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+void lockm() {
+	pthread_mutex_lock(&lock);
+}
+
+void unlockm() {
+	pthread_mutex_unlock(&lock);
+}
 
 // 2 MACs of Vm1 and Vm2
 //00:0c:29:49:3f:5b vm1
@@ -73,7 +80,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		if ((length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l)) == -1) {			
 			continue;
 		}
-		pthread_mutex_lock(&lock);
+		lockm();
 		debug("%s Received buffer, length=%d", ut(), length);
 
 		unpackPayload(buffer, &payload);	
@@ -85,7 +92,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		printPayloadContents(&payload);
 
 		if (addCurrentNodeAddressAsSource(&payload) == 0) {			
-			pthread_mutex_unlock(&lock);
+			unlockm();
 			continue;
 		}
 
@@ -104,12 +111,12 @@ void* respondToHostRequestsRoutine (void *arg) {
 		NetworkInterface* currentNode = getCurrentNodeInterface();
 		if (currentNode == NULL) {
 			debug("Current node if is NULL.Exit");
-			pthread_mutex_unlock(&lock);
+			unlockm();
 			free(buffer);
 			return;
 		}					
 		odrSend(&payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
-		pthread_mutex_unlock(&lock);
+		unlockm();
 	}
 	free(buffer);
 	pthread_exit(0);
@@ -138,7 +145,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		if (n == 0) {
 			continue;
 		}
-		pthread_mutex_lock(&lock);
+		lockm();
 		n = 1;
 		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
 		
@@ -152,7 +159,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 			// check if it is request to server
 			handlePacketAtDestinationNode(&ph, unixDomainFd);
 		}
-		pthread_mutex_unlock(&lock);
+		unlockm();
 	}
 }
 
