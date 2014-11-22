@@ -30,7 +30,7 @@ typedef struct networkInterface NetworkInterface;
 struct networkInterface {
 	unsigned char macAddress[IF_HADDR];
 	int interfaceIndex;
-	char ipAddr[IP_ADDR_LEN];
+	in_addr_t ipAddr;
 	int isEth0;
 	NetworkInterface* next;
 };

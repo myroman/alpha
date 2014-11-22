@@ -24,7 +24,6 @@ struct PayloadHdr {
 void* packPayload(PayloadHdr* p, uint32_t* bufLen);
 void unpackPayload(void* buf, PayloadHdr* ph);
 void printPayloadContents(PayloadHdr *ph);
-char * printIPHuman(in_addr_t ip);
 
 // for inner use
 void insertSrcPort(uint32_t sPort, void* buf);

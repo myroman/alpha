@@ -25,6 +25,7 @@ void rmnl(char* s);
 char* createTmplFilename();
 void printOK();
 void printFailed();
+char * printIPHuman(in_addr_t ip);
 
 typedef struct sockaddr_un SockAddrUn;
 typedef struct sockaddr_ll SockAddrLl;

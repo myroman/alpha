@@ -6,12 +6,6 @@
 #include <string.h>
 #include "payloadHdr.h"
 
-
-char * printIPHuman(in_addr_t ip){
-	struct in_addr ipIa;
-	ipIa.s_addr = ip;
-	return inet_ntoa(ipIa);
-}
 void printPayloadContents(PayloadHdr *p){
 	printf(">> Source IP is %s %u\n",printIPHuman(p->srcIp), p->srcIp);
 	printf(">> Destination IP is %s %u\n",printIPHuman(p->destIp), p->destIp);

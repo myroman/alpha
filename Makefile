@@ -1,6 +1,7 @@
 include Make.defines
 
-all: client server test get_hw_addrs.o prhwaddrs.o odrProc routingTable portPath bidTable
+
+all: client server test get_hw_addrs.o prhwaddrs.o odrProc portPath bidTable
 	${CC} -o prhwaddrs prhwaddrs.o get_hw_addrs.o ${LIBS}
 
 get_hw_addrs.o: get_hw_addrs.c
@@ -22,18 +23,13 @@ test.o: test.c
 	${CC} ${FLAGS} -c test.c ${UNP}
 misc.o: misc.c
 	${CC} ${FLAGS} -c misc.c ${UNP}	
-odrProc: odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o payloadHdr.o
-	${CC} ${FLAGS} -o $@ odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o payloadHdr.o ${LIBS}
+odrProc: odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o payloadHdr.o routingTable.o
+	${CC} ${FLAGS} -o $@ odrProc.o odrImpl.o misc.o oapi.o get_hw_addrs.o payloadHdr.o routingTable.o ${LIBS}
 odrImpl.o: odrImpl.c
 	${CC} ${FLAGS} -c odrImpl.c ${UNP}
 
-test: test.o
-	${CC} ${FLAGS} -o $@ test.o ${LIBS}
-
 routingTable.o: routingTable.c
 	${CC} ${FLAGS} -c routingTable.c ${UNP}
-routingTable: routingTable.o
-	${CC} ${FLAGS} -o $@ routingTable.o ${LIBS}
 
 portPath.o: portPath.c
 	${CC} ${FLAGS} -c portPath.c ${UNP}
@@ -42,12 +38,13 @@ portPath: portPath.o
 
 bidTable.o: bidTable.c
 	${CC} ${FLAGS} -c bidTable.c ${UNP}
-bidTable: bidTable.o
-	${CC} ${FLAGS} -o $@ bidTable.o ${LIBS}
+bidTable: bidTable.o misc.o
+	${CC} ${FLAGS} -o $@ misc.o bidTable.o ${LIBS}
 
 payloadHdr.o: payloadHdr.c
 	${CC} ${FLAGS} -c payloadHdr.c ${UNP}
-#payloadHdr: payloadHdr.o
-#	${CC} ${FLAGS} -o $@ payloadHdr.o ${LIBS}	
+test: test.o
+	${CC} ${FLAGS} -o $@ test.o ${LIBS}
+
 clean:
-	rm *.o client server test odrProc routingTable portPath
+	rm *.o client server test odrProc portPath

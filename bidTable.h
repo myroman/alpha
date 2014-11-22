@@ -1,6 +1,7 @@
 #ifndef __bidTable_h_
 #define __bidTable_h_
 #include "unp.h"
+#include "misc.h"
 
 typedef struct BidEntry BidEntry;
 struct BidEntry{
@@ -11,5 +12,7 @@ struct BidEntry{
 };
 
 int addBidEntry(in_addr_t sIP, uint32_t bid, int hop_count);
-BidEntry* findBidEntry(in_addr_t dIP, uint32_t bid);
+BidEntry* findBidEntry(in_addr_t IP, uint32_t bid);
+int compareHopCount(in_addr_t destIP, uint32_t bid, int hopcount);
+void printBidTable();
 #endif
