@@ -13,6 +13,7 @@ struct RouteEntry{
 	in_addr_t dest_ip;
 	char next_hop [IF_HADDR];	/* hardware address */
 	int hop_count;
+	int interfaceInd;
 	struct timeval entryTime;
     RouteEntry *right;
     RouteEntry *left;
@@ -20,11 +21,12 @@ struct RouteEntry{
 
 
 //int addRouteEntry(char * dIP, char * nh, int hc);
-int addRouteEntry(in_addr_t dIP, char * nh, int hc);
+int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex);
+int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex);
 int checkTime(struct timeval * inspect);
 void removeRoutingEntry();
 //RouteEntry* findAndUpdateRouteEntry(char * destIP);
-RouteEntry* findAndUpdateRouteEntry(in_addr_t destIP);
+RouteEntry* findRouteEntry(in_addr_t destIP);
 void printRoutingTable();
 
 #endif
