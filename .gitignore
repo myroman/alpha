@@ -10,6 +10,7 @@ Make.defines
 routingTable
 portPath
 bitArrayTesting
+bidTable
 test
 *.orig
 *.txt
