@@ -3,9 +3,14 @@
 
 #include "misc.h"
 #include "oapi.h"
+
+#define MT_RREQ 0
+#define MT_RREP 1
+#define MT_PLD 2
+
 typedef struct PayloadHdr PayloadHdr;
 struct PayloadHdr {
-	uint32_t msgType;
+	uint32_t msgType; // takes values of MT_ defines.
 	uint32_t forceRediscovery;
 	uint32_t rrepSent;
 	uint32_t hopCount;
@@ -40,4 +45,6 @@ uint32_t extractDestPort(void *buf);
 //return NULL-terminated msg
 char* extractMsg(void* buf);
 
+
+PayloadHdr convertToResponse(PayloadHdr req);
 #endif

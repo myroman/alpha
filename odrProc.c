@@ -5,6 +5,7 @@
 #include "misc.h"
 #include "hw_addrs.h"
 #include "payloadHdr.h"
+#include "routingTable.h"
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
@@ -111,7 +112,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
 		}		
 		// Let's lock to show consistent output		
-		odrSend(odrSockFd, &payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
+		odrSend(odrSockFd, payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 	}
 	free(buffer);
 	close(odrSockFd);
@@ -138,27 +139,27 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	}
 
 	PayloadHdr ph;
+	SockAddrLl senderAddr;	
+	int sz = sizeof(senderAddr);
 	int n = 1; //flag handling bad incoming packets
 	for(;;) {
-		if (n != 0) {
+		if (n != -1) {
 			printf("%s waiting for PF_PACKETs..\n", nt());
-		}
-		
-		if ((n = odrRecv(rawSockFd, &ph, buffer)) == 0) {
+		}		
+
+		// Receive PF_PACKET
+		int sz = sizeof(struct sockaddr_ll);
+		bzero(buffer, ETH_FRAME_LEN);
+		n = recvfrom(rawSockFd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
+		if (n == -1 || ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
+			n = -1;
 			continue;
 		}
+		debug("\nODR: Received PF_PACKET, length=%d", n);
+		unpackPayload(buffer + 14, &ph);
 		
 		lockm();
-		printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
-		
-		int atDestination = currentNode->ipAddr == ph.destIp;
-		if (atDestination == 0) {
-			printf("%s We're at intermediate node with IP=%s", nt(), printIPHuman(ph.destIp));
-		} else {
-			printf("%s We're at destination node with IP=%s\n", nt(), printIPHuman(ph.destIp));
-			// check if it is request to server
-			handlePacketAtDestinationNode(&ph, unixDomainFd);
-		}
+		handleIncomingPacket(rawSockFd, unixDomainFd, ph, currentNode, senderAddr);		
 		unlockm();
 	}
 	free(buffer);
@@ -193,7 +194,7 @@ void fillInterfaces() {
 				prflag = 1;
 				break;
 			}
-		} while (++i < IF_HADDR);
+		} while (++i < ETH_ALEN);
 
 		// At this point we understand, that current interface has useful info
 		if (hwa != hwahead) {
@@ -206,16 +207,19 @@ void fillInterfaces() {
 			niPtr->isEth0 = 1;
 			printf("Etho is found\n");
 		}
+		if (strcmp(hwa->if_name, "lo") == 0) {
+			niPtr->isLo = 1;
+		}
 
 		char* s = Sock_ntop_host(sa, sizeof(*sa));
 		niPtr->ipAddr = inet_addr(s);
 
 		if (prflag) {
 			ptr = hwa->if_haddr;
-			i = IF_HADDR;
+			i = ETH_ALEN;
 			int j;
 			do {
-				j = IF_HADDR - i;
+				j = ETH_ALEN - i;
 				niPtr->macAddress[j] = *ptr++ & 0xFF;
 			} while (--i > 0);
 
@@ -245,7 +249,7 @@ NetworkInterface* getCurrentNodeInterface() {
 
 // Handles scenario when the packet arrived at destination
 // 2 basic cases: we're at server or client node.
-void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd) {	
+void handlePacketAtDestinationNode(int unixDomainFd, PayloadHdr* ph) {	
 	SockAddrUn appAddr;
 	void* buf;
 	int bufLen, res;
@@ -291,4 +295,109 @@ int createOdrSocket() {
 	    return -1;
 	}
 	return sd;
+}
+
+void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* currentNode, SockAddrLl sndAddr) {
+	printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
+
+	RouteEntry* destEntry = findRouteEntry(ph.destIp);
+	// Don't increase hop count if
+	//1) the request comes from the same host
+	//2)if comes RREP, and we don't have destination route (it's exceptional case)
+	int weDontKnowRREP = (ph.msgType == MT_RREP) && (destEntry == NULL);
+	if (currentNode->ipAddr != ph.srcIp) {
+		ph.hopCount++;
+	}
+	// Insert/update reverse path entry
+	insertOrUpdateRouteEntry(ph.srcIp, sndAddr.sll_addr, ph.hopCount, sndAddr.sll_ifindex);
+	RouteEntry* srcEntry = findRouteEntry(ph.srcIp);
+	
+	printf("%s MsgType:%d, from %s:%d \n",nt(), ph.msgType, printIPHuman(ph.srcIp), ph.srcPort);
+	// It's a RREQ
+	if (ph.msgType == MT_RREQ) {
+		// At intermediate node
+		if (ph.destIp != currentNode->ipAddr) {
+			if (destEntry != NULL) {	
+				printf("%s INT.NODE: RREQ received. I got a route, so RREP back and propagate\n", nt());
+
+				// RREP back and propagate
+				PayloadHdr respHdr = convertToResponse(ph);
+				rrepBack(rawSockFd, respHdr, currentNode->macAddress, sndAddr);
+				sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+			}
+			// Flood if we don't know the route
+			else {
+				printf("%s INT.NODE: RREQ received. Don't have a route, so flood\n", nt());
+				flood(rawSockFd, ph, currentNode->macAddress, sndAddr);
+			}
+		} 
+		// At destination
+		else {		  
+			printf("%s DEST.NODE: RREQ received. So send RREP\n", nt());
+			PayloadHdr respHdr = convertToResponse(ph);	   
+			respHdr.hopCount = 0;
+			rrepBack(rawSockFd, respHdr, currentNode->macAddress, sndAddr);
+		}
+	}
+
+	// It's a RREP
+	else if (ph.msgType == MT_RREP) {
+		// At intermediate node
+		if (ph.destIp != currentNode->ipAddr) {
+			// disregard it - we don't have a reverse path for it
+			if (destEntry == NULL) {
+				return;
+			}
+			printf("%s INT.NODE: RREP received. Send RREP back to the REQQuestor\n", nt());
+			sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+		}
+		// At destination
+		else {
+			printf("%s DEST.NODE: RREP received. Send Hi!\n", nt());
+			PayloadHdr msg = convertToResponse(ph);
+			msg.hopCount = 0;
+			strcpy(msg.msg, "Hi!\0");
+			sendToRoute(rawSockFd, msg, currentNode->macAddress, *srcEntry);
+		}
+	}
+	// It's an APP payload packet
+	else {
+		// At intermediate node
+		if (ph.destIp != currentNode->ipAddr) {
+			if (destEntry != NULL) {		
+				printf("%s INT.NODE: Forward message:%s\n", nt(), ph.msg);
+				sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+			}			
+		}		
+		else{
+			//We're at destination, get UNIX file by port and send payload to the process
+			printf("%s DEST.NODE: Got a payload message: %s. Pushing it up to the process...\n", nt(), ph.msg);
+			handlePacketAtDestinationNode(unixDomainFd, &ph);
+		}
+	}
+}
+
+void rrepBack(int rawSockFd, PayloadHdr respH, unsigned char currentMac[ETH_ALEN], SockAddrLl recvAddr) {
+	odrSend(rawSockFd, respH, currentMac, recvAddr.sll_addr, recvAddr.sll_ifindex);
+}
+
+void sendToRoute(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], RouteEntry destEntry) {
+	odrSend(rawSockFd, ph, currentMac, destEntry.next_hop, destEntry.interfaceInd);
+}
+
+void flood(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], SockAddrLl senderAddr) {
+	unsigned char toAll[ETH_ALEN];
+
+	//Send to all interfaces except incoming interface, eth0 and lo.
+	NetworkInterface* ptr;
+	for(ptr = ifHead;ptr != NULL;ptr = ptr->next) {
+		if (senderAddr.sll_ifindex == ptr->interfaceIndex) {
+			continue;
+		}
+		if (ptr->isEth0 == 1 || ptr->isLo == 1) {
+			continue;
+		}
+
+		odrSend(rawSockFd, ph, currentMac, toAll, ptr->interfaceIndex);
+	}	
 }

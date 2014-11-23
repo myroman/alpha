@@ -157,3 +157,24 @@ uint32_t extractDestPort(void *buf){
 	tmp = tmp & (0xFFFF);
 	return (uint32_t)tmp;
 }
+
+// constructs an appropriate response header for RREQ or RREP coming to destination node.
+PayloadHdr convertToResponse(PayloadHdr ph) {
+	ph.hopCount = 0;
+
+	if (ph.msgType == MT_RREQ)
+		ph.msgType = MT_RREP;
+	else if (ph.msgType == MT_RREP)
+		ph.msgType = MT_PLD;
+
+	//swap IPs and ports
+	ph.srcIp = ph.srcIp ^ ph.destIp;
+	ph.destIp = ph.srcIp ^ ph.destIp;
+	ph.srcIp = ph.srcIp ^ ph.destIp;
+
+	ph.srcPort = ph.srcPort ^ ph.destPort;
+	ph.destPort = ph.srcPort ^ ph.destPort;
+	ph.srcPort = ph.srcPort ^ ph.destPort;
+
+	return ph;
+}
