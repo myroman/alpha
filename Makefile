@@ -1,7 +1,7 @@
 include Make.defines
 
 
-all: client server test get_hw_addrs.o prhwaddrs.o odrProc
+all: client test get_hw_addrs.o server prhwaddrs.o odrProc
 	${CC} -o prhwaddrs prhwaddrs.o get_hw_addrs.o ${LIBS}
 
 get_hw_addrs.o: get_hw_addrs.c
@@ -15,8 +15,8 @@ get_ifi_info_plus.o: get_ifi_info_plus.c
 
 client: client.o oapi.o misc.o get_hw_addrs.o payloadHdr.o
 	${CC} ${FLAGS} -o $@ client.o oapi.o misc.o get_hw_addrs.o payloadHdr.o ${LIBS}
-server: server.o oapi.o misc.o payloadHdr.o
-	${CC} ${FLAGS} -o $@ server.o oapi.o misc.o payloadHdr.o ${LIBS}
+server: server.o oapi.o misc.o get_hw_addrs.o payloadHdr.o
+	${CC} ${FLAGS} -o $@ server.o oapi.o misc.o payloadHdr.o get_hw_addrs.o ${LIBS}
 oapi.o: oapi.c
 	${CC} ${FLAGS} -c oapi.c ${UNP}	
 test.o: test.c
