@@ -4,6 +4,8 @@
 #include "oapi.h"
 #include "payloadHdr.h"
 #include "hw_addrs.h"
+#include "routingTable.h"
+#include <linux/if_ether.h>
 
 struct frameUserData {
 	char ipAddr[IP_ADDR_LEN];
@@ -13,6 +15,17 @@ struct frameUserData {
 	int srcPortNumber;
 };
 typedef struct frameUserData FrameUserData;
+
+typedef struct networkInterface NetworkInterface;
+struct networkInterface {
+	unsigned char macAddress[ETH_ALEN];
+	int interfaceIndex;
+	in_addr_t ipAddr;
+	int isEth0;
+	int isLo;
+	NetworkInterface* next;
+};
+
 // odrProc.c
 void* respondToHostRequestsRoutine (void *arg);
 void* respondToNetworkRequestsRoutine (void *arg);
@@ -20,20 +33,14 @@ char* ut();
 char* nt();
 void fillInterfaces();
 
-int odrSend(int sockfd, PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
-int odrRecv(int sockfd, PayloadHdr* ph, void* buffer);
+void rrepBack(int rawSockFd, PayloadHdr respH, unsigned char currentMac[ETH_ALEN], SockAddrLl recvAddr);
+void sendToRoute(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], RouteEntry destEntry);
+void flood(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], SockAddrLl senderAddr);
+int odrSend(int sockfd, PayloadHdr ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
 int addCurrentNodeAddressAsSource(PayloadHdr* dto);
-void handlePacketAtDestinationNode(PayloadHdr* ph, int unixDomainFd);
+void handlePacketAtDestinationNode(int unixDomainFd, PayloadHdr* ph);
 int handleLocalDestMode(PayloadHdr* dto);
-
-typedef struct networkInterface NetworkInterface;
-struct networkInterface {
-	unsigned char macAddress[IF_HADDR];
-	int interfaceIndex;
-	in_addr_t ipAddr;
-	int isEth0;
-	NetworkInterface* next;
-};
+void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* currentNode, SockAddrLl sndAddr);
 NetworkInterface* getCurrentNodeInterface();
 
 // odrImpl.c

@@ -10,7 +10,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-int odrSend(int odrSockFd, PayloadHdr* ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
+int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
 	printf("ODR: Gonna send from MAC ");
 	printMac(srcMac);
 	printf(" to ");
@@ -24,6 +24,8 @@ int odrSend(int odrSockFd, PayloadHdr* ph, unsigned char srcMac[6], unsigned cha
 	struct ethhdr *eh = (struct ethhdr *)etherhead;/*another pointer to ethernet header*/	 
 	
 	/*prepare sockaddr_ll*/	
+
+	// TODO: htons for sll_familty and prot
 	socket_address.sll_family   = PF_PACKET;/*RAW communication*/
 	socket_address.sll_protocol = htons(PROTOCOL_NUMBER);	/*we don't use a protocoll above ethernet layer->just use anything here*/
 	socket_address.sll_ifindex  = destInterfaceIndex; /*index of the network device see full code later how to retrieve it*/	
@@ -42,19 +44,19 @@ int odrSend(int odrSockFd, PayloadHdr* ph, unsigned char srcMac[6], unsigned cha
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)destMac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)srcMac, ETH_ALEN);
-	int16_t prot = 0x1C9;
+	int16_t prot = htons(0x1C9);
 	memcpy((void*)buffer+2*ETH_ALEN, &prot, 2);
 	eh->h_proto = 0x00;
 
 	// SENDING PART	
 	int payloadLength;
-	void* payload = packPayload(ph, &payloadLength);
+	void* payload = packPayload(&ph, &payloadLength);
 	memcpy(data, payload, payloadLength);
 	free(payload);
 	
 	/*send the packet*/
 	
-	printf("ODR:sending PF_PACKET with msg %s...", ph->msg);
+	printf("ODR:sending PF_PACKET with msg %s...", ph.msg);
 	int res = sendto(odrSockFd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (res == -1) { 
 		printFailed();
@@ -64,24 +66,6 @@ int odrSend(int odrSockFd, PayloadHdr* ph, unsigned char srcMac[6], unsigned cha
 	}
 	printOK();
 	free(buffer);
-}
-
-int odrRecv(int odrSockFd, PayloadHdr* ph, void* buffer) {	
-	SockAddrLl senderAddr;	
-	int sz = sizeof(senderAddr);
-	bzero(buffer, ETH_FRAME_LEN);
-	int length = recvfrom(odrSockFd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
-	if (length == -1) {
-		return 0;
-	}
-	if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {				
-		//printf("%d,", ntohs(senderAddr.sll_protocol));
-		return 0;
-	}	
-
-	debug("\nODR: Received PF_PACKET, length=%d", length);
-	unpackPayload(buffer + 14, ph);
-	return 1;	
 }
 
 void printMac(unsigned char mac[6]) {
