@@ -24,14 +24,14 @@ int insertOrUpdateRouteEntry(in_addr_t sIP, char * nh, int hc, int intFIndex, Ro
                 ptr->interfaceInd = intFIndex;
             }
             else{
-                memcpy(ptr->next_hop, nh, IF_HADDR);
+                memcpy(ptr->next_hop, nh, ETH_ALEN);
                 gettimeofday(&(ptr->entryTime), NULL);
                 ptr->interfaceInd = intFIndex;
                 debug("Update the next hop MAC and entry time");
             }
         }
         else if(ptr->hop_count > hc){
-            memcpy(ptr->next_hop, nh, IF_HADDR); //set the memory of the next hop
+            memcpy(ptr->next_hop, nh, ETH_ALEN); //set the memory of the next hop
             gettimeofday(&(ptr->entryTime), NULL); //set the timeestmap
             ptr->hop_count = hc;
             ptr->interfaceInd = intFIndex;  
@@ -56,7 +56,7 @@ int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex, RouteEntry **
 
     //memcpy(newRoute->dest_ip, dIP, IF_NAME);
     newRoute->dest_ip = dIP;
-    memcpy(newRoute->next_hop, nh, IF_HADDR);
+    memcpy(newRoute->next_hop, nh, ETH_ALEN);
     newRoute->hop_count = hc;
     newRoute->interfaceInd = intFIndex;
 

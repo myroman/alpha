@@ -31,7 +31,7 @@ int addPortPath(char * fpath, int port, int fd ,int w, PortPath ** headEntryPort
     	*tailEntryPort = newEntry;
     }
 }
-int checkTime(struct timeval * inspect){
+int checkTime2(struct timeval * inspect){
 	struct timeval curTime;
     gettimeofday(&(curTime), NULL);
     if( (curTime.tv_sec - inspect->tv_sec) > STALENESS){
@@ -49,7 +49,7 @@ void removePortEntry(PortPath ** headEntryPort, PortPath ** tailEntryPort){
         	continue;
         }
 
-        if(checkTime(&(ptr->entryTime)) == -1){
+        if(checkTime2(&(ptr->entryTime)) == -1){
             printf("Removed file path and port entry because it was stale\n");
             if(ptr->left == NULL && ptr->right != NULL){
                 //HEAD
