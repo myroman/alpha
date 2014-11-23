@@ -19,11 +19,11 @@ struct PortPath{
 };
 
 
-int addPortPath(char * fpath, int port, int fd,int w);
+int addPortPath(char * fpath, int port, int fd,int w, PortPath ** headEntryPort, PortPath ** tailEntryPort);
 int checkTime(struct timeval * inspect);
-void removePortEntry();
-PortPath* findAndUpdatePath(char * fp);
-PortPath* findAndUpdatePort(int port);
-void printPortTable();
+void removePortEntry(PortPath ** headEntryPort, PortPath ** tailEntryPort);
+PortPath* findAndUpdatePath(char * fp, PortPath ** headEntryPort, PortPath ** tailEntryPort);
+PortPath* findAndUpdatePort(int port, PortPath ** headEntryPort, PortPath ** tailEntryPort);
+void printPortTable(PortPath ** headEntryPort, PortPath ** tailEntryPort);
 
 #endif

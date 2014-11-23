@@ -1,10 +1,8 @@
 #include "portPath.h"
 #include "debug.h"
 
-PortPath *headEntryPort = NULL;
-PortPath *tailEntryPort = NULL;
 
-int addPortPath(char * fpath, int port, int fd ,int w){
+int addPortPath(char * fpath, int port, int fd ,int w, PortPath ** headEntryPort, PortPath ** tailEntryPort){
 	int ret = 0;
 	//Malloc the space for the new struct
     PortPath *newEntry = (PortPath *) malloc(sizeof( struct PortPath ));
@@ -21,16 +19,16 @@ int addPortPath(char * fpath, int port, int fd ,int w){
     newEntry->port_number = port;
     newEntry->well_known = w;
     newEntry->fd = fd;
-    if(headEntryPort == NULL){
-    	headEntryPort = newEntry;
+    if(*headEntryPort == NULL){
+    	*headEntryPort = newEntry;
     	newEntry->left = NULL;
     	newEntry->right = NULL;
-    	tailEntryPort = newEntry;
+    	*tailEntryPort = newEntry;
     }
     else{
-    	tailEntryPort->right = newEntry;
-    	newEntry->left = tailEntryPort;
-    	tailEntryPort = newEntry;
+    	(*tailEntryPort)->right = newEntry;
+    	newEntry->left = *tailEntryPort;
+    	*tailEntryPort = newEntry;
     }
 }
 int checkTime(struct timeval * inspect){
@@ -43,8 +41,8 @@ int checkTime(struct timeval * inspect){
         return 0;
     }
 }
-void removePortEntry(){
-	PortPath *ptr = headEntryPort;
+void removePortEntry(PortPath ** headEntryPort, PortPath ** tailEntryPort){
+	PortPath *ptr = *headEntryPort;
     while(ptr != NULL){
         if(ptr->well_known == 1){
         	ptr= ptr->right;
@@ -56,20 +54,20 @@ void removePortEntry(){
             if(ptr->left == NULL && ptr->right != NULL){
                 //HEAD
                 debug("HEAD Removed");
-                headEntryPort = ptr->right;
-                headEntryPort->left = NULL;
+                *headEntryPort = ptr->right;
+                (*headEntryPort)->left = NULL;
             }
             else if(ptr->left != NULL && ptr->right == NULL){
                 //TAIL
                 debug("TAIL Removed\n");
-                tailEntryPort = ptr->left;
-                tailEntryPort->right = NULL;
+                *tailEntryPort = ptr->left;
+                (*tailEntryPort)->right = NULL;
             }
             else if(ptr->left == NULL && ptr->right == NULL){
                 //HEAD_TAIL
                 debug("HEAD_TAIL Removed\n");
-                headEntryPort = NULL;
-                tailEntryPort = NULL;
+                *headEntryPort = NULL;
+                *tailEntryPort = NULL;
             }
             else{
                 debug("MIDDLE Removed\n");
@@ -81,9 +79,9 @@ void removePortEntry(){
         ptr=ptr->right;
     }
 }
-PortPath* findAndUpdatePath(char * fp){
-	PortPath * ptr = headEntryPort;
-    removePortEntry();
+PortPath* findAndUpdatePath(char * fp,PortPath ** headEntryPort, PortPath ** tailEntryPort){
+	removePortEntry(headEntryPort, tailEntryPort);
+    PortPath * ptr = *headEntryPort;
     while(ptr != NULL){
         if(strcmp(ptr->file_path, fp) ==0)
             return ptr;
@@ -92,9 +90,10 @@ PortPath* findAndUpdatePath(char * fp){
 
     return NULL;
 }
-PortPath* findAndUpdatePort(int port){
-	PortPath * ptr = headEntryPort;
-    removePortEntry();
+PortPath* findAndUpdatePort(int port, PortPath ** headEntryPort, PortPath ** tailEntryPort){
+	removePortEntry(headEntryPort, tailEntryPort);
+    PortPath * ptr = *headEntryPort;
+    
     while(ptr != NULL){
         if(ptr->port_number==port)
             return ptr;
@@ -103,8 +102,8 @@ PortPath* findAndUpdatePort(int port){
 
     return NULL;
 }
-void printPortTable(){
-	PortPath * ptr = headEntryPort;
+void printPortTable(PortPath ** headEntryPort, PortPath ** tailEntryPort){
+	PortPath * ptr = *headEntryPort;
 	int index = 0;
 	while(ptr != NULL){
 
@@ -113,21 +112,26 @@ void printPortTable(){
 		ptr = ptr->right;
 	}
 }
-
+/*
 int main(){
-	addPortPath("test.c", 1024, 10,0);
-	addPortPath("test.cpp", 1025, 11,1);
+	
+    PortPath *headEntryPort = NULL;
+    PortPath *tailEntryPort = NULL;
 
-	printPortTable();
-	sleep(1);
+    addPortPath("test.c", 1024, 10,0, &headEntryPort, &tailEntryPort);
+	addPortPath("test.cpp", 1025, 11,1, &headEntryPort, &tailEntryPort);
 
-	PortPath *p = findAndUpdatePort(1025);
-	PortPath *p2 = findAndUpdatePath("test.c");
+	printPortTable(&headEntryPort, &tailEntryPort);
+	sleep(6);
 
+	PortPath *p = findAndUpdatePort(1025, &headEntryPort, &tailEntryPort);
+	PortPath *p2 = findAndUpdatePath("test.c", &headEntryPort, &tailEntryPort);
+    debug("here");
 	if(p!= NULL)
 		printf("%s, %u, %u\n", p->file_path, p->port_number, p->fd);
 	if(p2!=NULL) 
 		printf("%s, %u, %u\n", p2->file_path, p2->port_number, p2->fd);
-
-	printPortTable();
+    debug("here");
+	printPortTable(&headEntryPort, &tailEntryPort);
 }
+*/

@@ -145,7 +145,7 @@ void printRoutingTable(RouteEntry *headEntry, RouteEntry *tailEntry){
 	}
 }
 
-int main (){
+/*int main (){
     //addRouteEntry("129.49.233.217", "bc:77:37:27:94:03", 0);
     //addRouteEntry("129.49.233.218", "bc:77:37:27:94:03", 0);
     RouteEntry *headEntry=NULL; //= malloc(sizeof(RouteEntry));//NULL;
@@ -173,4 +173,4 @@ int main (){
 
     printRoutingTable(headEntry, tailEntry);
     
-}
+}*/
