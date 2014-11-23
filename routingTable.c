@@ -78,7 +78,9 @@ int addRouteEntry(in_addr_t dIP, char * nh, int hc, int intFIndex, RouteEntry **
 int checkTime(struct timeval * inspect){
     struct timeval curTime;
     gettimeofday(&(curTime), NULL);
-    if( (curTime.tv_sec - inspect->tv_sec) > ROUTING_ENTRY_STALE){
+    
+    //printf("\n\n\n Routing Table STALENESS %u \n\n\n", STALENESS);    
+    if( (curTime.tv_sec - inspect->tv_sec) > STALENESS){
         return -1;
     }
     else{

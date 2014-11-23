@@ -10,6 +10,7 @@
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
+#include "portPath.h"
 
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
@@ -17,7 +18,10 @@ char* callbackClientName = NULL;
 int hack = 1;
 RouteEntry *headEntry = NULL;
 RouteEntry *tailEntry = NULL;
+PortPath *headEntryPort = NULL;
+PortPath *tailEntryPort = NULL;
 int newClientPortNumber = 1024;//seed
+int STALENESS;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void lockm() {
 	pthread_mutex_lock(&lock);
@@ -34,6 +38,14 @@ Then call a function from odrImpl.c
 2) When you get a response from ODR, serialize it and send back to the needed socket	*/
 int main(int argc, char **argv) {
 	
+	if(argc != 2){
+		printf("Staleness Value was not given.. Setting it to 5 by default.");
+		STALENESS = 5;
+	}
+	else{
+		STALENESS = atoi(argv[1]);
+		debug("Staleness %d %s", STALENESS, argv[1]);
+	}
 	int unixDomainFd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
 	unlink(ODR_UNIX_PATH);
 	servaddr = createSockAddrUn(ODR_UNIX_PATH);	
@@ -68,6 +80,11 @@ int main(int argc, char **argv) {
 }
 
 void* respondToHostRequestsRoutine (void *arg) {	
+	
+	addPortPath(SRV_UNIX_PATH, SRV_PORT_NUMBER, 0, 1, &headEntryPort, &tailEntryPort);
+	printPortTable(&headEntryPort, &tailEntryPort);
+
+
 	int unixDomainFd = (intptr_t)arg,
 		odrSockFd = createOdrSocket();	
 	void* buffer = malloc(MAXLINE);//change to 1500 or less
@@ -82,6 +99,19 @@ void* respondToHostRequestsRoutine (void *arg) {
 		if ((length = recvfrom(unixDomainFd, buffer, MAXLINE, 0, (SA *)&senderAddr, &l)) == -1) {			
 			continue;
 		}
+		PortPath * check = findAndUpdatePath(senderAddr.sun_path, &headEntryPort, &tailEntryPort);
+		if(check == NULL){
+			debug("\n\nService not present in Table. Adding\n\n");
+			addPortPath(senderAddr.sun_path, newClientPortNumber, 0, 0, &headEntryPort, &tailEntryPort);
+			newClientPortNumber++;
+			printPortTable(&headEntryPort, &tailEntryPort);
+		}
+		else{
+			debug("Service was already present in the Table. Not adding.");
+			printPortTable(&headEntryPort, &tailEntryPort);
+		}
+
+
 		debug("%s Received buffer, length=%d", ut(), length);
 
 		unpackPayload(buffer, &payload);	
@@ -107,7 +137,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		}
 
 		if (payload.msgType == CLIENT_MSG_TYPE) {
-			payload.srcPort = newClientPortNumber++;
+			payload.srcPort = (findAndUpdatePath(senderAddr.sun_path, &headEntryPort, &tailEntryPort))->port_number; //newClientPortNumber++;
 
 			strcpy(callbackClientName, senderAddr.sun_path);						
 			//debug("\n\nClient Msg: %d\n\n", payload.msgType);

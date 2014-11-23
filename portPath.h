@@ -1,11 +1,11 @@
-#ifndef __routingTable_h_
-#define __routingTable_h_
+#ifndef __portPath_h_
+#define __portPath_h_
 #include "unp.h"
 #include <sys/time.h>
 
 #define PATH_LENGTH 104
-#define STALENESS 5
-
+//#define STALENESS 2
+extern int STALENESS;
 typedef struct PortPath PortPath;//typeDef for the Clinet Info object
 struct PortPath{
 	char file_path [PATH_LENGTH];

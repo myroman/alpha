@@ -6,8 +6,8 @@
 
 #define	IF_NAME		16	/* same as IFNAMSIZ    in <net/if.h> */
 //#define	ETH_ALEN	 30	/* sa	me as IFHWADDRLEN in <net/if.h> */
-#define ROUTING_ENTRY_STALE 2
-
+//#define ROUTING_ENTRY_STALE 2
+extern int STALENESS;
 typedef struct RouteEntry RouteEntry;//typeDef for the Clinet Info object
 struct RouteEntry{
 	//char dest_ip [IF_NAME];

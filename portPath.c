@@ -34,7 +34,12 @@ int addPortPath(char * fpath, int port, int fd ,int w, PortPath ** headEntryPort
 int checkTime2(struct timeval * inspect){
 	struct timeval curTime;
     gettimeofday(&(curTime), NULL);
+    //debug("currentTime %u, inspect time %u", curTime.tv_sec, inspect->tv_sec);
+    
+    //printf("\n\n\nSTALENESS = %d \n\n\n", STALENESS);
+
     if( (curTime.tv_sec - inspect->tv_sec) > STALENESS){
+        debug("check time = -1 %u", (curTime.tv_sec - inspect->tv_sec));
         return -1;
     }
     else{
@@ -80,11 +85,13 @@ void removePortEntry(PortPath ** headEntryPort, PortPath ** tailEntryPort){
     }
 }
 PortPath* findAndUpdatePath(char * fp,PortPath ** headEntryPort, PortPath ** tailEntryPort){
-	removePortEntry(headEntryPort, tailEntryPort);
+    removePortEntry(headEntryPort, tailEntryPort);
     PortPath * ptr = *headEntryPort;
     while(ptr != NULL){
-        if(strcmp(ptr->file_path, fp) ==0)
+        if(strcmp(ptr->file_path, fp) ==0){
+            gettimeofday(&(ptr->entryTime), NULL);
             return ptr;
+        }
         ptr=ptr->right;
     }
 
@@ -95,8 +102,10 @@ PortPath* findAndUpdatePort(int port, PortPath ** headEntryPort, PortPath ** tai
     PortPath * ptr = *headEntryPort;
     
     while(ptr != NULL){
-        if(ptr->port_number==port)
+        if(ptr->port_number==port){
+            gettimeofday(&(ptr->entryTime), NULL);
             return ptr;
+        }
         ptr=ptr->right;
     }
 
@@ -105,24 +114,26 @@ PortPath* findAndUpdatePort(int port, PortPath ** headEntryPort, PortPath ** tai
 void printPortTable(PortPath ** headEntryPort, PortPath ** tailEntryPort){
 	PortPath * ptr = *headEntryPort;
 	int index = 0;
-	while(ptr != NULL){
+	printf("\n*** Port Path Table ***\n ");
+    while(ptr != NULL){
 
 		printf("%d: Sun Path filename: %s, Port Number: %d, File Descriptor: %u, Well Know: %d\n", index, ptr->file_path, ptr->port_number, ptr->fd ,ptr->well_known);
 		index++;
 		ptr = ptr->right;
 	}
+    printf("\n");
 }
 /*
 int main(){
 	
     PortPath *headEntryPort = NULL;
     PortPath *tailEntryPort = NULL;
-
+    addPortPath("test.cpp", 1025, 11,1, &headEntryPort, &tailEntryPort);
     addPortPath("test.c", 1024, 10,0, &headEntryPort, &tailEntryPort);
-	addPortPath("test.cpp", 1025, 11,1, &headEntryPort, &tailEntryPort);
+	
 
 	printPortTable(&headEntryPort, &tailEntryPort);
-	sleep(6);
+	sleep(3);
 
 	PortPath *p = findAndUpdatePort(1025, &headEntryPort, &tailEntryPort);
 	PortPath *p2 = findAndUpdatePath("test.c", &headEntryPort, &tailEntryPort);
@@ -133,5 +144,4 @@ int main(){
 		printf("%s, %u, %u\n", p2->file_path, p2->port_number, p2->fd);
     debug("here");
 	printPortTable(&headEntryPort, &tailEntryPort);
-}
-*/
+}*/
