@@ -11,6 +11,7 @@
 #include <linux/if_arp.h>
 
 int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex) {
+	//debug("\n\n\n\nNetwork interface %u, odrSockFd %u\n\n\n\n", destInterfaceIndex, odrSockFd);
 	printf("ODR: Gonna send from MAC ");
 	printMac(srcMac);
 	printf(" to ");
@@ -55,8 +56,9 @@ int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char
 	free(payload);
 	
 	/*send the packet*/
-	
-	printf("ODR:sending PF_PACKET with msg %s...", ph.msg);
+	//printf("SrcIP %s:%u, DestIP %s:%u\n", printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
+	printf("ODR:sending PF_PACKET with msg %s msgType %d...", ph.msg, ph.msgType);
+
 	int res = sendto(odrSockFd, buffer, ETH_FRAME_LEN, 0, (SA* )&socket_address, sizeof(socket_address));
 	if (res == -1) { 
 		printFailed();
@@ -65,6 +67,7 @@ int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char
 		return 1;
 	}
 	printOK();
+	debug("Res = %d", res);
 	free(buffer);
 }
 

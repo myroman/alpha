@@ -14,6 +14,9 @@
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
 char* callbackClientName = NULL;
+int hack = 1;
+RouteEntry *headEntry = NULL;
+RouteEntry *tailEntry = NULL;
 int newClientPortNumber = 1024;//seed
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void lockm() {
@@ -107,10 +110,14 @@ void* respondToHostRequestsRoutine (void *arg) {
 			payload.srcPort = newClientPortNumber++;
 
 			strcpy(callbackClientName, senderAddr.sun_path);						
+			//debug("\n\nClient Msg: %d\n\n", payload.msgType);
+
 			printf("%s Got a msg from client (filepath=%s)\n", ut(), senderAddr.sun_path);			
 		} else {
+			//debug("\n\nServer Msg: %d\n\n", payload.msgType);
 			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
-		}		
+		}	
+		payload.msgType = 2;//Fogot to set MsgType field to MSG payload	
 		// Let's lock to show consistent output		
 		odrSend(odrSockFd, payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
 	}
@@ -120,9 +127,13 @@ void* respondToHostRequestsRoutine (void *arg) {
 }
 
 void* respondToNetworkRequestsRoutine (void *arg) {
-	int srcPort, 
-		unixDomainFd = (intptr_t)arg,
-		rawSockFd = createOdrSocket();	
+	int srcPort, rawSockFd,
+		unixDomainFd = (intptr_t)arg;//,
+	//if(hack == 1){
+		rawSockFd = createOdrSocket();
+		//hack++;
+	//}
+		
 	if (rawSockFd == -1) {
 		return;
 	}
@@ -298,9 +309,8 @@ int createOdrSocket() {
 }
 
 void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* currentNode, SockAddrLl sndAddr) {
-	printf("%s got a packet message: %s from %s:%d to %s:%d \n", nt(), ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
-
-	RouteEntry* destEntry = findRouteEntry(ph.destIp);
+	printf("%s got a packet message: MsgType %d: %s from %s:%d to %s:%d \n", nt(), ph.msgType, ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
+	RouteEntry* destEntry = findRouteEntry(ph.destIp, &headEntry, &tailEntry);
 	// Don't increase hop count if
 	//1) the request comes from the same host
 	//2)if comes RREP, and we don't have destination route (it's exceptional case)
@@ -309,8 +319,8 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, Networ
 		ph.hopCount++;
 	}
 	// Insert/update reverse path entry
-	insertOrUpdateRouteEntry(ph.srcIp, sndAddr.sll_addr, ph.hopCount, sndAddr.sll_ifindex);
-	RouteEntry* srcEntry = findRouteEntry(ph.srcIp);
+	insertOrUpdateRouteEntry(ph.srcIp, sndAddr.sll_addr, ph.hopCount, sndAddr.sll_ifindex, &headEntry, &tailEntry);
+	RouteEntry* srcEntry = findRouteEntry(ph.srcIp, &headEntry, &tailEntry);
 	
 	printf("%s MsgType:%d, from %s:%d \n",nt(), ph.msgType, printIPHuman(ph.srcIp), ph.srcPort);
 	// It's a RREQ
