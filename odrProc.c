@@ -132,7 +132,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 		//print info
 		printf("%s", ut());
 		printPayloadContents(&payload);
-
+		
 		lockm();		
 		NetworkInterface* currentNode = getCurrentNodeInterface();
 		if (currentNode == NULL) {
@@ -149,8 +149,8 @@ void* respondToHostRequestsRoutine (void *arg) {
 			debug("DestIP is local!");
 			payload.destIp = currentNode->ipAddr;
 		}
-
-		if (payload.msgType == CLIENT_MSG_TYPE) {
+		
+		if (payload.msgType == MT_RREQ) {
 			payload.srcPort = (findAndUpdatePath(senderAddr.sun_path, &headEntryPort, &tailEntryPort))->port_number; //newClientPortNumber++;
 
 			strcpy(callbackClientName, senderAddr.sun_path);						
@@ -165,10 +165,14 @@ void* respondToHostRequestsRoutine (void *arg) {
 		// Let's lock to show consistent output		
 		SockAddrLl sndAddr;
 		bzero(&sndAddr, sizeof(sndAddr));
-		//handleIncomingPacket(rawSockFd, unixDomainFd, payload, currentNode, sndAddr);
-		unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-		odrSend(rawSockFd, payload, currentNode->macAddress, toAll, currentNode->interfaceIndex);		
+		lockm();		
+		handleIncomingPacket(rawSockFd, unixDomainFd, &payload, currentNode, sndAddr);
+		unlockm();
+		//unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+		//sndAddr.sll_ifindex = currentNode->interfaceIndex;
+		//flood(rawSockFd, payload, sndAddr);
+		//odrSend(rawSockFd, payload, currentNode->macAddress, toAll, currentNode->interfaceIndex);		
 	}
 	free(buffer);
 	close(rawSockFd);
@@ -233,12 +237,18 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 				if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
 					n = -2;
 					goto rep;
-				}
-				debug("\nODR: Received PF_PACKET, length=%d", n);
+				}				
 				unpackPayload(buffer + 14, &ph);
+				// filter out pingback caused by flooding from this host
+				if (ph.msgType == MT_RREQ && ph.srcIp == p->ipAddr) {
+					printf("Skip flood-back RREQs\n");
+				}
+
+				debug("\nODR: Received PF_PACKET, length=%d", n);
+				sleep(2);
 
 				lockm();
-				handleIncomingPacket(p->sd, unixDomainFd, ph, p, senderAddr);		
+				handleIncomingPacket(p->sd, unixDomainFd, &ph, p, senderAddr);		
 				unlockm();
 				
 			}
@@ -297,7 +307,7 @@ void fillInterfaces() {
 		}
 
 		char* s = Sock_ntop_host(sa, sizeof(*sa));
-		niPtr->ipAddr = inet_addr(s);
+		niPtr->ipAddr = ntohl(inet_addr(s));
 
 		if (prflag) {
 			ptr = hwa->if_haddr;
@@ -396,68 +406,72 @@ int createOdrSocket() {
 	return sd;
 }
 
-void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* incomingIntf, SockAddrLl sndAddr) {
-	printf("%s got a packet message: MsgType %d: %s from %s:%d to %s:%d \n", nt(), ph.msgType, ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
-	RouteEntry* destEntry = findRouteEntry(ph.destIp, &headEntry, &tailEntry);
+void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, NetworkInterface* incomingIntf, SockAddrLl sndAddr) {
+	//DONt join this printf statements
+	printf("%s got a packet message: MsgType %d: %s from %s:%u", nt(), ph->msgType, ph->msg, printIPHuman(ph->srcIp), ph->srcPort);
+	printf("to %s:%u \n", printIPHuman(ph->destIp), ph->destPort);
+	in_addr_t destIp = ph->destIp;
+	RouteEntry* destEntry = findRouteEntry(destIp, &headEntry, &tailEntry);
 	
-	if (ph.srcIp != ph.destIp && ph.msgType == MT_PLD && destEntry == NULL) {
-		ph.msgType = MT_RREQ;
+	if (ph->srcIp != ph->destIp && ph->msgType == MT_PLD && destEntry == NULL) {
+		ph->msgType = MT_RREQ;
+		printf("%s MT_PLD->MT_RREQ", nt());
 	}
 
 	// Don't increase hop count if
 	//1) the request comes from the same host
 	//2)if comes RREP, and we don't have destination route (it's exceptional case)
-	int weDontKnowRREP = (ph.msgType == MT_RREP) && (destEntry == NULL);
-	if (incomingIntf->ipAddr != ph.srcIp) {
-		ph.hopCount++;
+	int weDontKnowRREP = (ph->msgType == MT_RREP) && (destEntry == NULL);
+	if (incomingIntf->ipAddr != ph->srcIp) {
+		ph->hopCount++;
 	}
 	// Insert/update reverse path entry
-	insertOrUpdateRouteEntry(ph.srcIp, sndAddr.sll_addr, ph.hopCount, sndAddr.sll_ifindex, &headEntry, &tailEntry);
-	RouteEntry* srcEntry = findRouteEntry(ph.srcIp, &headEntry, &tailEntry);
+	insertOrUpdateRouteEntry(ph->srcIp, sndAddr.sll_addr, ph->hopCount, sndAddr.sll_ifindex, &headEntry, &tailEntry);
+	RouteEntry* srcEntry = findRouteEntry(ph->srcIp, &headEntry, &tailEntry);
 	
-	printf("%s MsgType:%d, from %s:%d \n",nt(), ph.msgType, printIPHuman(ph.srcIp), ph.srcPort);
+	printf("%s MsgType:%d, from %s:%d \n",nt(), ph->msgType, printIPHuman(ph->srcIp), ph->srcPort);
 	// It's a RREQ
-	if (ph.msgType == MT_RREQ) {
+	if (ph->msgType == MT_RREQ) {
 		// At intermediate node
-		if (ph.destIp != incomingIntf->ipAddr) {
+		if (ph->destIp != incomingIntf->ipAddr) {
 			if (destEntry != NULL) {	
 				printf("%s INT.NODE: RREQ received. I got a route, so RREP back and propagate\n", nt());
 
 				// RREP back and propagate
-				PayloadHdr respHdr = convertToResponse(ph);
+				PayloadHdr respHdr = convertToResponse(*ph);
 				rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
-				sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
+				sendToRoute(rawSockFd, *ph, incomingIntf->macAddress, *destEntry);
 			}
 			// Flood if we don't know the route
 			else {
 				printf("%s INT.NODE: RREQ received. Don't have a route, so flood\n", nt());
-				flood(rawSockFd, ph, incomingIntf->macAddress, sndAddr);
+				flood(rawSockFd, *ph, sndAddr);
 			}
 		} 
 		// At destination
 		else {		  
 			printf("%s DEST.NODE: RREQ received. So send RREP\n", nt());
-			PayloadHdr respHdr = convertToResponse(ph);	   
+			PayloadHdr respHdr = convertToResponse(*ph);	   
 			respHdr.hopCount = 0;
 			rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
 		}
 	}
 
 	// It's a RREP
-	else if (ph.msgType == MT_RREP) {
+	else if (ph->msgType == MT_RREP) {
 		// At intermediate node
-		if (ph.destIp != incomingIntf->ipAddr) {
+		if (destIp != incomingIntf->ipAddr) {
 			// disregard it - we don't have a reverse path for it
 			if (destEntry == NULL) {
 				return;
 			}
 			printf("%s INT.NODE: RREP received. Send RREP back to the REQQuestor\n", nt());
-			sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
+			sendToRoute(rawSockFd, *ph, incomingIntf->macAddress, *destEntry);
 		}
 		// At destination
 		else {
 			printf("%s DEST.NODE: RREP received. Send Hi!\n", nt());
-			PayloadHdr msg = convertToResponse(ph);
+			PayloadHdr msg = convertToResponse(*ph);
 			msg.hopCount = 0;
 			strcpy(msg.msg, "Hi!\0");
 			sendToRoute(rawSockFd, msg, incomingIntf->macAddress, *srcEntry);
@@ -466,16 +480,16 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, Networ
 	// It's an APP payload packet
 	else {
 		// At intermediate node
-		if (ph.destIp != incomingIntf->ipAddr) {
+		if (destIp != incomingIntf->ipAddr) {
 			if (destEntry != NULL) {		
-				printf("%s INT.NODE: Forward message:%s\n", nt(), ph.msg);
-				sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
+				printf("%s INT.NODE: Forward message:%s\n", nt(), ph->msg);
+				sendToRoute(rawSockFd, *ph, incomingIntf->macAddress, *destEntry);
 			}			
 		}		
 		else{
 			//We're at destination, get UNIX file by port and send payload to the process
-			printf("%s DEST.NODE: Got a payload message: %s. Pushing it up to the process...\n", nt(), ph.msg);
-			handlePacketAtDestinationNode(unixDomainFd, &ph);
+			printf("%s DEST.NODE: Got a payload message: %s. Pushing it up to the process...\n", nt(), ph->msg);
+			handlePacketAtDestinationNode(unixDomainFd, ph);
 		}
 	}
 }
@@ -488,16 +502,15 @@ void sendToRoute(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN
 	odrSend(rawSockFd, ph, currentMac, destEntry.next_hop, destEntry.interfaceInd);
 }
 
-void flood(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], SockAddrLl senderAddr) {
+void flood(int rawSockFd, PayloadHdr ph, SockAddrLl senderAddr) {
 	unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 //{0x00,0x0c,0x29,0xde,0x6a,0x6c};//
 	//Send to all interfaces except incoming interface, eth0 and lo.
 	NetworkInterface* ptr;
 	for(ptr = ifHead;ptr != NULL;ptr = ptr->next) {
 		if (senderAddr.sll_ifindex == ptr->interfaceIndex) {
-			//continue;
+			continue;
 		}
-		printf("    HEY   \n");
 		if (ptr->isEth0 == 1 || ptr->isLo == 1) {
 			continue;
 		}

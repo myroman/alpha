@@ -43,7 +43,7 @@ int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char
 
 	// SENDING PART	
 	int payloadLength;
-	void* payload = packPayload(&ph, &payloadLength);
+	void* payload = packPayload(&ph, &payloadLength);	
 	memcpy(data, payload, payloadLength);
 	free(payload);
 	
