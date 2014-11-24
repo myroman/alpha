@@ -199,11 +199,11 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	
 	fd_set set;
 	int maxfd;	
-	struct timeval tv;	
+	struct timeval tv;
 
 	for(;;) {
 	rep:
-
+		bzero(&tv, sizeof(struct timeval));
 		tv.tv_sec = 10;
 		tv.tv_usec = 0;
 		// set each descriptor
@@ -211,60 +211,61 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		for(p = ifHead;p != NULL;p=p->next) {
 			if ((p->isLo) == 0) {
 				FD_SET(p->sd, &set);	
-				//debug("set %d", p->sd);
 			}				
 		}
 
 		maxfd = maxRawSd;
 		maxfd++;
 		if (n != -2) {
-			printf("%s waiting for PF_PACKETs..\n", nt());	
+			printf("%s waiting for PF_PACKETs %d..\n", nt(), n);	
 		}
-		select(maxfd, &set, NULL, NULL, &tv);
+
+		n = select(maxfd, &set, NULL, NULL, &tv);		
 		for(p=ifHead;p!=NULL;p=p->next) {
 			// don't receive from lo and eth0
-			if ((p->isLo|p->isEth0) == 0 && FD_ISSET(p->sd, &set)) {				
-
-				// Receive PF_PACKET
-				int sz = sizeof(struct sockaddr_ll);
-				bzero(buffer, ETH_FRAME_LEN);
-				n = recvfrom(p->sd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
-				FD_CLR(p->sd, &set);
-				if (n == -1) {
-					goto rep;
-				}
-				if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
-					n = -2;
-					goto rep;
-				}				
-				unpackPayload(buffer + 14, &ph);
-				// filter out pingback caused by flooding from this host
-				if ((ph.msgType == MT_RREQ || ph.msgType == MT_RREP) && findMatchByIp(ph.srcIp) != NULL) {
-					printf("Skip flood-back RREQs:\n");					
-					continue;
-				}
-				if (macsEqual(p->macAddress, senderAddr.sll_addr) == 1) {
-					printf("Skip equal macs");
-					continue;
-				}
-
-				printf("\nODR: Received PF_PACKET on MAC:");
-				printMac(p->macAddress);
-				printf(" from MAC: ");
-				printMac(senderAddr.sll_addr);
-				printf(", msg type = %d\n", ph.msgType);
-
-				//, length=%d", n);
-				sleep(2);
-
-				lockm();
-				handleIncomingPacket(p->sd, unixDomainFd, &ph, p, senderAddr);		
-				unlockm();
-				
+			if ((p->isLo|p->isEth0) != 0 || !FD_ISSET(p->sd, &set)) {				
+				n = -2;
+				continue;
 			}
-		}
-		if (n == -2 || n== -1) {
-			continue;
+			// Receive PF_PACKET
+			int sz = sizeof(struct sockaddr_ll);
+			bzero(buffer, ETH_FRAME_LEN);
+
+			n = recvfrom(p->sd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
+			FD_CLR(p->sd, &set);
+			if (n == -1 || n == 1) {
+				n = -2;
+				goto rep;
+			}
+			if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
+				n = -2;
+				goto rep;
+			}				
+			unpackPayload(buffer + 14, &ph);
+			// filter out pingback caused by flooding from this host
+			if ((ph.msgType == MT_RREQ || ph.msgType == MT_RREP) && findMatchByIp(ph.srcIp) != NULL) {
+				printf("Skip flood-back RREQs:\n");					
+				n = -2;
+				continue;
+			}
+			if (hasMatch(senderAddr.sll_addr) == 1) {
+				printf("Skip equal macs");
+				n = -2;
+				continue;
+			}
+
+			printf("\nODR: Received PF_PACKET on MAC:");
+			printMac(p->macAddress);
+			printf(" from MAC: ");
+			printMac(senderAddr.sll_addr);
+			printf(", msg type = %d\n", ph.msgType);
+
+			//, length=%d", n);
+			sleep(2);
+
+			lockm();
+			handleIncomingPacket(p->sd, unixDomainFd, &ph, p, senderAddr);		
+			unlockm();
 		}
 	}
 	free(buffer);
@@ -416,17 +417,6 @@ int createOdrSocket() {
 	return sd;
 }
 
-NetworkInterface* findMatchByIp(in_addr_t ip) {
-	NetworkInterface* p = NULL;
-	for(p = ifHead;p!=NULL;p=p->next) {
-		if (p->ipAddr == ip) {
-			return p;
-		}
-	}
-
-	return p;
-}
-
 void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, NetworkInterface* incomingIntf, SockAddrLl sndAddr) {
 	//DONt join this printf statements
 	printf("%s got a packet message: MsgType %d: %s from %s:%u ", nt(), ph->msgType, ph->msg, printIPHuman(ph->srcIp), ph->srcPort);
@@ -448,6 +438,8 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 		ph->msgType = MT_RREQ;
 		printf("%s MT_PLD->MT_RREQ\n", nt());
 	}
+	
+	RouteEntry* srcEntry = findRouteEntry(ph->srcIp, &headEntry, &tailEntry);	
 
 	// Don't increase hop count if
 	//1) the request comes from the same host
@@ -458,7 +450,9 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 	}
 	// Insert/update reverse path entry
 	insertOrUpdateRouteEntry(ph->srcIp, sndAddr.sll_addr, ph->hopCount, sndAddr.sll_ifindex, &headEntry, &tailEntry);
-	RouteEntry* srcEntry = findRouteEntry(ph->srcIp, &headEntry, &tailEntry);
+	if (ph->msgType == MT_RREP && srcEntry != NULL) {
+		return;
+	}
 	
 	printf("%s MsgType:%d, from %s:%d \n",nt(), ph->msgType, printIPHuman(ph->srcIp), ph->srcPort);
 	// It's a RREQ
@@ -556,12 +550,30 @@ void flood(int rawSockFd, PayloadHdr ph, SockAddrLl senderAddr) {
 	printf("***BROADCAST FINISHED***\n");
 }
 
-int macsEqual(unsigned char mac1[ETH_ALEN], unsigned char mac2[ETH_ALEN]) {
-	int i;
-	for(i=0;i<ETH_ALEN;++i) {
-		if(mac1[i]!=mac2[i]){
-			return 0;
+int hasMatch(unsigned char mac[ETH_ALEN]) {
+	NetworkInterface* p = NULL;
+	for(p = ifHead; p!=NULL; p=p->next) {
+		int i, found = 1;
+		for(i=0;i<ETH_ALEN;++i) {
+			if(p->macAddress[i] != mac[i]){
+				found = 0;
+				break;
+			}
+		}
+		if (found == 1) {
+			return 1;
 		}
 	}
-	return 1;
+	return 0;
+}
+
+NetworkInterface* findMatchByIp(in_addr_t ip) {
+	NetworkInterface* p = NULL;
+	for(p = ifHead;p!=NULL;p=p->next) {
+		if (p->ipAddr == ip) {
+			return p;
+		}
+	}
+
+	return p;
 }
