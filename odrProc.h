@@ -2,11 +2,14 @@
 #define __odr_h_
 
 #include "oapi.h"
+#include "misc.h"
 #include "payloadHdr.h"
 #include "hw_addrs.h"
 #include "routingTable.h"
 #include <linux/if_ether.h>
 
+#define PROTOCOL_NUMBER 0x2457
+	
 struct frameUserData {
 	char ipAddr[IP_ADDR_LEN];
 	int portNumber;
@@ -18,17 +21,22 @@ typedef struct frameUserData FrameUserData;
 
 typedef struct networkInterface NetworkInterface;
 struct networkInterface {
+	SockAddrLl* sockAddr;
 	unsigned char macAddress[ETH_ALEN];
 	int interfaceIndex;
 	in_addr_t ipAddr;
 	int isEth0;
 	int isLo;
 	NetworkInterface* next;
+	int sd;
+
 };
 
 // odrProc.c
 void* respondToHostRequestsRoutine (void *arg);
+//void respondToHostRequestsRoutine (int unixDomainFd, int odrSockFd);
 void* respondToNetworkRequestsRoutine (void *arg);
+//void respondToNetworkRequestsRoutine (int unixDomainFd, int odrSockFd);
 char* ut();
 char* nt();
 void fillInterfaces();
@@ -52,5 +60,5 @@ char* itostr2(int val);
 
 void printMac(unsigned char mac[6]);
 int createOdrSocket();
-#define PROTOCOL_NUMBER 51235
+
 #endif

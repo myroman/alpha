@@ -21,6 +21,7 @@ RouteEntry *tailEntry = NULL;
 PortPath *headEntryPort = NULL;
 PortPath *tailEntryPort = NULL;
 int newClientPortNumber = 1024;//seed
+int maxRawSd = 0;
 int STALENESS;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void lockm() {
@@ -47,6 +48,7 @@ int main(int argc, char **argv) {
 		debug("Staleness %d %s", STALENESS, argv[1]);
 	}
 	int unixDomainFd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
+	int odrSockFd = createOdrSocket();
 	unlink(ODR_UNIX_PATH);
 	servaddr = createSockAddrUn(ODR_UNIX_PATH);	
 	bind(unixDomainFd, (SA *) &servaddr, sizeof(servaddr));	
@@ -76,23 +78,35 @@ int main(int argc, char **argv) {
 	printf("ODR terminated\n");
 	free(callbackClientName);
 	free(ifHead);
+	//close(odrSockFd);
 	close(unixDomainFd);
+	ptr = ifHead;
+	
+	for(;ptr != NULL;ptr = ptr->next) {
+		close(ptr->sd);
+		free(ptr->sockAddr);
+	}
 }
 
 void* respondToHostRequestsRoutine (void *arg) {	
-	
+	int unixDomainFd = (intptr_t)arg;
+	int rawSockFd = createOdrSocket();
+	if (rawSockFd == -1) {
+		debug("bad socket");
+		return;
+	}
+	SockAddrLl ssa;
+	bzero(&ssa, sizeof(struct sockaddr_ll));
+	bind(rawSockFd, (SockAddrLl*)&ssa, sizeof(struct sockaddr_ll));
+
 	addPortPath(SRV_UNIX_PATH, SRV_PORT_NUMBER, 0, 1, &headEntryPort, &tailEntryPort);
 	printPortTable(&headEntryPort, &tailEntryPort);
 
-
-	int unixDomainFd = (intptr_t)arg,
-		odrSockFd = createOdrSocket();	
+	
 	void* buffer = malloc(MAXLINE);//change to 1500 or less
 	SockAddrUn senderAddr;
 	PayloadHdr payload;
-	if (odrSockFd == -1) {
-		return;
-	}
+	
 	for(;;) {
 		printf("%s Waiting from UNIX socket...\n", ut());
 		int l = sizeof(struct sockaddr_un), length;
@@ -147,27 +161,23 @@ void* respondToHostRequestsRoutine (void *arg) {
 			//debug("\n\nServer Msg: %d\n\n", payload.msgType);
 			printf("%s Got a msg from server '%s' (filepath=%s).\n", ut(), payload.msg, senderAddr.sun_path);						
 		}	
-		payload.msgType = 2;//Fogot to set MsgType field to MSG payload	
+		payload.msgType = MT_PLD;//Fogot to set MsgType field to MSG payload	
 		// Let's lock to show consistent output		
-		odrSend(odrSockFd, payload, currentNode->macAddress, currentNode->macAddress, currentNode->interfaceIndex);		
+		SockAddrLl sndAddr;
+		bzero(&sndAddr, sizeof(sndAddr));
+		//handleIncomingPacket(rawSockFd, unixDomainFd, payload, currentNode, sndAddr);
+		unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+		odrSend(rawSockFd, payload, currentNode->macAddress, toAll, currentNode->interfaceIndex);		
 	}
 	free(buffer);
-	close(odrSockFd);
+	close(rawSockFd);
 	pthread_exit(0);
 }
 
 void* respondToNetworkRequestsRoutine (void *arg) {
-	int srcPort, rawSockFd,
-		unixDomainFd = (intptr_t)arg;//,
-	//if(hack == 1){
-		rawSockFd = createOdrSocket();
-		//hack++;
-	//}
-		
-	if (rawSockFd == -1) {
-		return;
-	}
-	
+	int srcPort;
+		int unixDomainFd = (intptr_t)arg;
 	void* buffer = (void*)malloc(ETH_FRAME_LEN); /*Buffer for ethernet frame*/
 	
 	lockm();
@@ -183,28 +193,62 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 	SockAddrLl senderAddr;	
 	int sz = sizeof(senderAddr);
 	int n = 1; //flag handling bad incoming packets
-	for(;;) {
-		if (n != -1) {
-			printf("%s waiting for PF_PACKETs..\n", nt());
-		}		
+	
+	fd_set set;
+	int maxfd;	
+	struct timeval tv;
+	
 
-		// Receive PF_PACKET
-		int sz = sizeof(struct sockaddr_ll);
-		bzero(buffer, ETH_FRAME_LEN);
-		n = recvfrom(rawSockFd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
-		if (n == -1 || ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
-			n = -1;
+	for(;;) {
+	rep:
+
+		tv.tv_sec = 10;
+		tv.tv_usec = 0;
+		// set each descriptor
+		NetworkInterface* p = ifHead;
+		for(p = ifHead;p != NULL;p=p->next) {
+			if ((p->isLo) == 0) {
+				FD_SET(p->sd, &set);	
+				//debug("set %d", p->sd);
+			}				
+		}
+
+		maxfd = maxRawSd;
+		maxfd++;
+		if (n != -2) {
+			printf("%s waiting for PF_PACKETs..\n", nt());	
+		}
+		select(maxfd, &set, NULL, NULL, &tv);
+		for(p=ifHead;p!=NULL;p=p->next) {
+			if ((p->isLo) == 0 && FD_ISSET(p->sd, &set)) {				
+
+				// Receive PF_PACKET
+				int sz = sizeof(struct sockaddr_ll);
+				bzero(buffer, ETH_FRAME_LEN);
+				n = recvfrom(p->sd, buffer, ETH_FRAME_LEN, 0, (SA *)&senderAddr, &sz);
+				FD_CLR(p->sd, &set);
+				if (n == -1) {
+					goto rep;
+				}
+				if (ntohs(senderAddr.sll_protocol) != PROTOCOL_NUMBER) {
+					n = -2;
+					goto rep;
+				}
+				debug("\nODR: Received PF_PACKET, length=%d", n);
+				unpackPayload(buffer + 14, &ph);
+
+				lockm();
+				handleIncomingPacket(p->sd, unixDomainFd, ph, p, senderAddr);		
+				unlockm();
+				
+			}
+		}
+		if (n == -2 || n== -1) {
 			continue;
 		}
-		debug("\nODR: Received PF_PACKET, length=%d", n);
-		unpackPayload(buffer + 14, &ph);
-		
-		lockm();
-		handleIncomingPacket(rawSockFd, unixDomainFd, ph, currentNode, senderAddr);		
-		unlockm();
 	}
 	free(buffer);
-	close(rawSockFd);
+	pthread_exit(0);
 }
 
 char* nt() {
@@ -267,6 +311,20 @@ void fillInterfaces() {
 		}
 
 		niPtr->interfaceIndex = hwa->if_index;
+		//create sockets for all if except lo, but listen only for those except eth0 and lo
+		if ((niPtr->isLo) == 0) {
+			niPtr->sd = createOdrSocket();
+			//if (niPtr->isEth0 == 0) {
+				if (niPtr->sd > maxRawSd) {
+					maxRawSd = niPtr->sd;
+				}
+			//}
+
+			//bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+			niPtr->sockAddr = malloc(sizeof(struct sockaddr_ll));
+			bzero(niPtr->sockAddr, sizeof(struct sockaddr_ll));
+			//bind(niPtr->sd, (struct sockaddr_ll*)niPtr->sockAddr, sizeof(struct sockaddr_ll));
+		}
 	}
 
 	free_hwa_info(hwahead);
@@ -331,21 +389,26 @@ void handlePacketAtDestinationNode(int unixDomainFd, PayloadHdr* ph) {
 
 int createOdrSocket() {
 	int sd;
-	if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+	if ((sd = socket (AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
 	    printf("Creating ODR socket failed\n");
 	    return -1;
 	}
 	return sd;
 }
 
-void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* currentNode, SockAddrLl sndAddr) {
+void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* incomingIntf, SockAddrLl sndAddr) {
 	printf("%s got a packet message: MsgType %d: %s from %s:%d to %s:%d \n", nt(), ph.msgType, ph.msg, printIPHuman(ph.srcIp), ph.srcPort, printIPHuman(ph.destIp), ph.destPort);
 	RouteEntry* destEntry = findRouteEntry(ph.destIp, &headEntry, &tailEntry);
+	
+	if (ph.srcIp != ph.destIp && ph.msgType == MT_PLD && destEntry == NULL) {
+		ph.msgType = MT_RREQ;
+	}
+
 	// Don't increase hop count if
 	//1) the request comes from the same host
 	//2)if comes RREP, and we don't have destination route (it's exceptional case)
 	int weDontKnowRREP = (ph.msgType == MT_RREP) && (destEntry == NULL);
-	if (currentNode->ipAddr != ph.srcIp) {
+	if (incomingIntf->ipAddr != ph.srcIp) {
 		ph.hopCount++;
 	}
 	// Insert/update reverse path entry
@@ -356,19 +419,19 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, Networ
 	// It's a RREQ
 	if (ph.msgType == MT_RREQ) {
 		// At intermediate node
-		if (ph.destIp != currentNode->ipAddr) {
+		if (ph.destIp != incomingIntf->ipAddr) {
 			if (destEntry != NULL) {	
 				printf("%s INT.NODE: RREQ received. I got a route, so RREP back and propagate\n", nt());
 
 				// RREP back and propagate
 				PayloadHdr respHdr = convertToResponse(ph);
-				rrepBack(rawSockFd, respHdr, currentNode->macAddress, sndAddr);
-				sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+				rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
+				sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
 			}
 			// Flood if we don't know the route
 			else {
 				printf("%s INT.NODE: RREQ received. Don't have a route, so flood\n", nt());
-				flood(rawSockFd, ph, currentNode->macAddress, sndAddr);
+				flood(rawSockFd, ph, incomingIntf->macAddress, sndAddr);
 			}
 		} 
 		// At destination
@@ -376,20 +439,20 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, Networ
 			printf("%s DEST.NODE: RREQ received. So send RREP\n", nt());
 			PayloadHdr respHdr = convertToResponse(ph);	   
 			respHdr.hopCount = 0;
-			rrepBack(rawSockFd, respHdr, currentNode->macAddress, sndAddr);
+			rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
 		}
 	}
 
 	// It's a RREP
 	else if (ph.msgType == MT_RREP) {
 		// At intermediate node
-		if (ph.destIp != currentNode->ipAddr) {
+		if (ph.destIp != incomingIntf->ipAddr) {
 			// disregard it - we don't have a reverse path for it
 			if (destEntry == NULL) {
 				return;
 			}
 			printf("%s INT.NODE: RREP received. Send RREP back to the REQQuestor\n", nt());
-			sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+			sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
 		}
 		// At destination
 		else {
@@ -397,16 +460,16 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, Networ
 			PayloadHdr msg = convertToResponse(ph);
 			msg.hopCount = 0;
 			strcpy(msg.msg, "Hi!\0");
-			sendToRoute(rawSockFd, msg, currentNode->macAddress, *srcEntry);
+			sendToRoute(rawSockFd, msg, incomingIntf->macAddress, *srcEntry);
 		}
 	}
 	// It's an APP payload packet
 	else {
 		// At intermediate node
-		if (ph.destIp != currentNode->ipAddr) {
+		if (ph.destIp != incomingIntf->ipAddr) {
 			if (destEntry != NULL) {		
 				printf("%s INT.NODE: Forward message:%s\n", nt(), ph.msg);
-				sendToRoute(rawSockFd, ph, currentNode->macAddress, *destEntry);
+				sendToRoute(rawSockFd, ph, incomingIntf->macAddress, *destEntry);
 			}			
 		}		
 		else{
@@ -426,18 +489,19 @@ void sendToRoute(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN
 }
 
 void flood(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], SockAddrLl senderAddr) {
-	unsigned char toAll[ETH_ALEN];
-
+	unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+//{0x00,0x0c,0x29,0xde,0x6a,0x6c};//
 	//Send to all interfaces except incoming interface, eth0 and lo.
 	NetworkInterface* ptr;
 	for(ptr = ifHead;ptr != NULL;ptr = ptr->next) {
 		if (senderAddr.sll_ifindex == ptr->interfaceIndex) {
-			continue;
+			//continue;
 		}
+		printf("    HEY   \n");
 		if (ptr->isEth0 == 1 || ptr->isLo == 1) {
 			continue;
 		}
 
-		odrSend(rawSockFd, ph, currentMac, toAll, ptr->interfaceIndex);
+		odrSend(rawSockFd, ph, ptr->macAddress, toAll, ptr->interfaceIndex);
 	}	
 }

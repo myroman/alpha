@@ -10,7 +10,7 @@ void replyTs(int sockfd);
 
 int main(int argc, char **argv)
 {	
-	getNodeName();
+	//getNodeName();
 
 	int listenfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
 	unlink(SRV_UNIX_PATH);
@@ -85,7 +85,7 @@ void replyTs(int sockfd)
 		printf("Received msg:%s from %s:%d\n", msg, srcIpAddr, srcPort);
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s", ctime(&ticks));
-        printf("server at node %s responding to request from %s\n", myNodeName, getRequestNodeName(srcIpAddr));
+        //printf("server at node %s responding to request from %s\n", myNodeName, getRequestNodeName(srcIpAddr));
         printf("Sending %s, length = %d\n", buff, (int)strlen(buff));         
 		msg_send(sockfd, srcIpAddr, srcPort, buff, forceRediscovery);
 	}

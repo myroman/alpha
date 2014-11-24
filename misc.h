@@ -7,7 +7,7 @@
 //Ethernet frame positions
 #define IP_ADDR_LEN 16
 #define PORT_DIG_LEN 5
-#define ETH_FRAME_LEN 1518
+//#define ETH_FRAME_LEN 1518
 
 #define ETHFR_MAXDATA_LEN 1500
 #define MAX_PAYLD_MSG_LEN 1482
