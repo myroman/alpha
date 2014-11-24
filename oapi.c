@@ -83,7 +83,7 @@ int msg_recv(int sockfd, char* msg, char* srcIpAddr, int* srcPort) {
 	PayloadHdr ph;
 	char* buf = malloc(ETHFR_MAXDATA_LEN);
 	for(;;){
-		tv.tv_sec = 10;
+		tv.tv_sec = 60;
 		tv.tv_usec = 0;
 		FD_ZERO(&set);
 		FD_SET(sockfd, &set);

@@ -34,7 +34,7 @@ void getNodeName(){
 		}
 	}
 	myNodeIP = Sock_ntop_host(sa, sizeof(*sa));
-
+char* myNodeName;
 	//myNodeName = findNameofVM(myNodeIP);
 	if(inet_aton(myNodeIP, &ipv4addr) != 0){
             if((hptr = gethostbyaddr(&ipv4addr, sizeof ipv4addr, AF_INET)) == NULL)
