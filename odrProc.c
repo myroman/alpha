@@ -145,7 +145,7 @@ void* respondToHostRequestsRoutine (void *arg) {
 
 		payload.srcIp = currentNode->ipAddr;				
 		// we check the passcode in case client choose 'loc'
-		if (payload.destIp == LOCAL_INET_IP){
+		if (payload.destIp == ntohl(LOCAL_INET_IP)){
 			debug("DestIP is local!");
 			payload.destIp = currentNode->ipAddr;
 		}
@@ -506,15 +506,17 @@ void flood(int rawSockFd, PayloadHdr ph, SockAddrLl senderAddr) {
 	unsigned char toAll[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 //{0x00,0x0c,0x29,0xde,0x6a,0x6c};//
 	//Send to all interfaces except incoming interface, eth0 and lo.
+	printf("***BROADCAST***\n");
 	NetworkInterface* ptr;
 	for(ptr = ifHead;ptr != NULL;ptr = ptr->next) {
 		if (senderAddr.sll_ifindex == ptr->interfaceIndex) {
 			continue;
 		}
-		if (ptr->isEth0 == 1 || ptr->isLo == 1) {
+		if (ptr->isLo == 1) {
 			continue;
 		}
 
 		odrSend(rawSockFd, ph, ptr->macAddress, toAll, ptr->interfaceIndex);
 	}	
+	printf("***BROADCAST FINISHED***\n");
 }

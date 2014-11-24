@@ -71,10 +71,8 @@ void unpackPayload(void * buf, PayloadHdr* phdr){
 	phdr->rrepSent = (tmp & 0x10000000) >> 28;
 	phdr->hopCount = (tmp & 0xFFFC000) >> 14;
 	phdr->broadcastId = tmp & 0x3FFF;
-
 	phdr->srcPort = extractSrcPort(buf);
 	phdr->destPort = extractDestPort(buf);
-
 	phdr->srcIp = ntohl(extractSrcIp(buf));
 	phdr->destIp = ntohl(extractDestIp(buf));
 
@@ -131,9 +129,11 @@ void insertMsgOrFluff(char* msg, void* buf) {
 	bzero(msgPtr, strSize);
 	memcpy(msgPtr, msg, strSize - 1);
 
+	uint32_t netStrSize = htons((strSize-1) & 0xFFFF);
+
 	// filling message length (without '\0')
 	bzero((void*)ptr, 2);
-	*ptr = *ptr | ((strSize-1) & 0xFFFF);
+	*ptr = *ptr | (netStrSize);
 }
 
 in_addr_t extractSrcIp(void* buf) {
