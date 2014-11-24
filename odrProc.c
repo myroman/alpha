@@ -11,6 +11,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include "portPath.h"
+#include "bidTable.h"
 
 SockAddrUn servaddr;
 NetworkInterface* ifHead = NULL;
@@ -20,9 +21,12 @@ RouteEntry *headEntry = NULL;
 RouteEntry *tailEntry = NULL;
 PortPath *headEntryPort = NULL;
 PortPath *tailEntryPort = NULL;
+BidEntry *headBid = NULL;
+BidEntry *tailBid = NULL;
 int newClientPortNumber = 1024;//seed
 int maxRawSd = 0;
 int STALENESS;
+int bid = 1;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void lockm() {
 	pthread_mutex_lock(&lock);
@@ -217,7 +221,7 @@ void* respondToNetworkRequestsRoutine (void *arg) {
 		maxfd = maxRawSd;
 		maxfd++;
 		if (n != -2) {
-			printf("%s waiting for PF_PACKETs %d..\n", nt(), n);	
+			printf("%s waiting for PF_PACKETs..\n", nt());	
 		}
 
 		n = select(maxfd, &set, NULL, NULL, &tv);		
@@ -435,8 +439,10 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 
 	// if we're not a destination, we may want to change PLD->RREQ, because request comes from client who sends payload
 	if (ph->srcIp != ph->destIp && ph->msgType == MT_PLD && destEntry == NULL && atDest == 0) {
+		bid++;
+		ph->broadcastId = bid;
 		ph->msgType = MT_RREQ;
-		printf("%s MT_PLD->MT_RREQ\n", nt());
+		printf("%s MT_PLD->MT_RREQ. New BID given %d\n", nt(), ph->broadcastId);
 	}
 	
 	RouteEntry* srcEntry = findRouteEntry(ph->srcIp, &headEntry, &tailEntry);	
@@ -461,7 +467,14 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 		if (atDest == 0) {
 			if (destEntry != NULL) {	
 				printf("%s INT.NODE: RREQ received. I got a route, so RREP back and propagate\n", nt());
-
+				int aBRet = addBidEntry(ph->srcIp, ph->broadcastId, ph->hopCount, &headBid, &tailBid);
+				if(aBRet == 0){
+					printf("\nBID: RREP already sent that was more efficient. Disreguarding.\n");
+					return;
+				}
+				else{
+					printf("BID: RREP needs to be sent/resent.");
+				}
 				// RREP back and propagate
 				PayloadHdr respHdr = convertToResponse(*ph);
 				rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
@@ -489,6 +502,14 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 			// disregard it - we don't have a reverse path for it
 			if (destEntry == NULL) {
 				return;
+			}
+			int aBRet = addBidEntry(ph->srcIp, ph->broadcastId, ph->hopCount, &headBid, &tailBid);
+			if(aBRet == 0){
+				printf("\nBID: RREP already sent that was more efficient. Disreguarding.\n");
+				return;
+			}
+			else{
+				printf("BID: RREP needs to be sent/resent.");
 			}
 			printf("%s INT.NODE: RREP received. Send RREP back to the REQQuestor\n", nt());
 			sendToRoute(rawSockFd, *ph, incomingIntf->macAddress, *destEntry);

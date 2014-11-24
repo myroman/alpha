@@ -124,14 +124,17 @@ void removeRoutingEntry(RouteEntry **headEntry, RouteEntry **tailEntry){
 }
 
 RouteEntry* findRouteEntry(in_addr_t destIP, RouteEntry **headEntry, RouteEntry **tailEntry){
-    RouteEntry * ptr = *headEntry;
+    debug("here2");
     removeRoutingEntry(headEntry, tailEntry);
+    debug("here1");
+    RouteEntry * ptr = *headEntry;
     while(ptr != NULL){
         //if(strcmp(ptr->dest_ip, destIP) ==0)
         if(destIP == ptr->dest_ip)
             return ptr;
         ptr=ptr->right;
     }
+    debug("here3");
     return NULL;
 }
 
@@ -139,12 +142,14 @@ RouteEntry* findRouteEntry(in_addr_t destIP, RouteEntry **headEntry, RouteEntry 
 void printRoutingTable(RouteEntry *headEntry, RouteEntry *tailEntry){
 	RouteEntry * ptr = headEntry;
 	int index = 0;
+    printf("\n***Rooting Table***\n");
 	while(ptr != NULL){
         //char * destIP = inet_ntoa(ptr->dest_ip);
 		printf("%d: destIP: %s, Next Hop MAC: %s, Hop Count : %u, Interface Index: %u, Entry Time: <%ld.%06ld>\n", index, printIPHuman(ptr->dest_ip), ptr->next_hop, ptr->hop_count, ptr->interfaceInd,(long) ptr->entryTime.tv_sec, (long) ptr->entryTime.tv_usec);
 		index++;
 		ptr = ptr->right;
 	}
+    printf("\n");
 }
 
 /*int main (){
