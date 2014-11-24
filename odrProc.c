@@ -475,7 +475,14 @@ void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, Netwo
 		if (atDest == 0) {
 			if (destEntry != NULL) {	
 				printf("%s INT.NODE: RREQ received. I got a route, so RREP back and propagate\n", nt());
-
+				int aBRet = addBidEntry(ph->srcIp, ph->broadcastId, ph->hopCount, &headBid, &tailBid);
+				if(aBRet == 0){
+					printf("\nBID: RREP already sent that was more efficient. Disreguarding.\n");
+					return;
+				}
+				else{
+					printf("BID: RREP needs to be sent/resent.");
+				}
 				// RREP back and propagate
 				PayloadHdr respHdr = convertToResponse(*ph);
 				rrepBack(rawSockFd, respHdr, incomingIntf->macAddress, sndAddr);
