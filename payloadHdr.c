@@ -54,8 +54,7 @@ void* packPayload(PayloadHdr* p, uint32_t* bufLen){
 	insertSrcPort(p->srcPort, msg_ptr);
 	insertDestPort(p->destPort, msg_ptr);
 	insertMsgOrFluff(p->msg, msg_ptr);
-	debug("Created buffer size:%d", headerLength);
-
+	
 	*bufLen = headerLength;
 	return msg_ptr;
 }

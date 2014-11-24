@@ -60,5 +60,6 @@ char* itostr2(int val);
 
 void printMac(unsigned char mac[6]);
 int createOdrSocket();
-
+NetworkInterface* findMatchByIp(in_addr_t ip);
+int macsEqual(unsigned char mac1[ETH_ALEN], unsigned char mac2[ETH_ALEN]);
 #endif

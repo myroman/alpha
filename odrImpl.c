@@ -58,7 +58,6 @@ int odrSend(int odrSockFd, PayloadHdr ph, unsigned char srcMac[6], unsigned char
 		return 1;
 	}
 	printOK();
-	debug("Res = %d", res);
 	free(buffer);
 }
 
