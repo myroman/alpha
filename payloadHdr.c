@@ -6,6 +6,7 @@
 #include <string.h>
 #include "payloadHdr.h"
 
+// to call printIPHuman, Ips should be in HOST order: it's convert them to network
 void printPayloadContents(PayloadHdr *p){
 	printf(">> Source IP is %s %u\n",printIPHuman(p->srcIp), p->srcIp);
 	printf(">> Destination IP is %s %u\n",printIPHuman(p->destIp), p->destIp);
@@ -33,8 +34,8 @@ int resolveCorrectMsgSize(char* msg) {
 }
 
 void* packPayload(PayloadHdr* p, uint32_t* bufLen){
-
-	int headerLength = 18 + resolveCorrectMsgSize(p->msg);
+	int msgSize = resolveCorrectMsgSize(p->msg);
+	int headerLength = 18 + msgSize;
 	void * msg_ptr = malloc(headerLength);
 	bzero(msg_ptr, headerLength);
 	
@@ -45,10 +46,11 @@ void* packPayload(PayloadHdr* p, uint32_t* bufLen){
 	tmp |= (p->rrepSent << 28);
 	tmp |= (p->hopCount << 14);
 	tmp |= p->broadcastId;
+	tmp = htonl(tmp);
 	//copy info to the head of buffer
 	memcpy(msg_ptr, &tmp, 4);	
-	insertSrcIp(p->srcIp, msg_ptr);
-	insertDestIp(p->destIp, msg_ptr);
+	insertSrcIp(htonl(p->srcIp), msg_ptr);
+	insertDestIp(htonl(p->destIp), msg_ptr);
 	insertSrcPort(p->srcPort, msg_ptr);
 	insertDestPort(p->destPort, msg_ptr);
 	insertMsgOrFluff(p->msg, msg_ptr);
@@ -63,6 +65,7 @@ void unpackPayload(void * buf, PayloadHdr* phdr){
 
 	int tmp = 0;
 	memcpy(&tmp, buf, 4);
+	tmp = ntohl(tmp);
 	phdr->msgType = (tmp & 0xc0000000) >> 30;
 	phdr->forceRediscovery = (tmp & 0x20000000) >> 29;
 	phdr->rrepSent = (tmp & 0x10000000) >> 28;
@@ -72,14 +75,15 @@ void unpackPayload(void * buf, PayloadHdr* phdr){
 	phdr->srcPort = extractSrcPort(buf);
 	phdr->destPort = extractDestPort(buf);
 
-	phdr->srcIp = extractSrcIp(buf);
-	phdr->destIp = extractDestIp(buf);
+	phdr->srcIp = ntohl(extractSrcIp(buf));
+	phdr->destIp = ntohl(extractDestIp(buf));
 
 	uint32_t msgLen = 0;
 	memcpy(&msgLen, buf + 16, 2);
+	msgLen = ntohs(msgLen);
 	if (msgLen <= 0) {
 		return;
-	}
+	}	
 	bzero(phdr->msg, msgLen + 1);
 	memcpy(phdr->msg, buf + 18, msgLen);
 }
@@ -97,14 +101,15 @@ void insertDestIp(in_addr_t ipAddr, void* buf) {
 void insertSrcPort(uint32_t sPort, void* buf){	
 	uint32_t* ptr = (uint32_t*)(buf + 12);	
 	bzero((void*)ptr, 2);
-	*ptr = *ptr | (sPort & 0xFFFF);
+	sPort = sPort & 0xFFFF;
+	*ptr = *ptr | htons(sPort);
 }
 
 void insertDestPort(uint32_t dPort, void* buf){
 	uint32_t* ptr = (uint32_t*)(buf + 14);
 	bzero((void*)ptr, 2);
 	dPort = dPort & 0xFFFF;	
-	*ptr = *ptr | dPort;
+	*ptr = *ptr | htons(dPort);
 }
 
 // should be NULL-term. string!
@@ -148,12 +153,14 @@ in_addr_t extractDestIp(void* buf) {
 uint32_t extractSrcPort(void *buf){
 	uint32_t tmp;
 	memcpy(&tmp, buf + 12, 2);
+	tmp = ntohs(tmp);
 	tmp = tmp & (0xFFFF);
 	return (uint32_t)tmp;
 }
 uint32_t extractDestPort(void *buf){
 	uint32_t tmp;
 	memcpy(&tmp, buf + 14, 2);
+	tmp = ntohs(tmp);
 	tmp = tmp & (0xFFFF);
 	return (uint32_t)tmp;
 }

@@ -36,16 +36,17 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 
 	bzero(&ph, sizeof(ph));
 	if (destPort == SRV_PORT_NUMBER) {
-		ph.msgType = CLIENT_MSG_TYPE;
+		ph.msgType = MT_RREQ;
 	} else {
-		ph.msgType = SRV_MSG_TYPE;
+		ph.msgType = MT_RREP;
 	}
+
 	ph.forceRediscovery = forceRediscovery;		
 	if (strcmp(destIpAddr, "loc") == 0) {
 		// for ODR this message means "Destination IP = local"
-		ph.destIp = LOCAL_INET_IP; // inet_addr("0.1.2.3"); 
+		ph.destIp = ntohl(LOCAL_INET_IP); // inet_addr("0.1.2.3"); 
 	} else {
-		ph.destIp = inet_addr(destIpAddr);
+		ph.destIp = ntohl(inet_addr(destIpAddr));
 	}	
 	ph.destPort = destPort;
 	//Initially
@@ -54,7 +55,7 @@ int msg_send(int callbackFd, char* destIpAddr, int destPort, const char* msg, in
 	strcpy(ph.msg, msg);
 
 	printPayloadContents(&ph);
-
+	
 	// Packing and sending
 	uint32_t bufLen = 0;
 	void* packedBuf = packPayload(&ph, &bufLen);	

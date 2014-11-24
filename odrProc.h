@@ -43,12 +43,12 @@ void fillInterfaces();
 
 void rrepBack(int rawSockFd, PayloadHdr respH, unsigned char currentMac[ETH_ALEN], SockAddrLl recvAddr);
 void sendToRoute(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], RouteEntry destEntry);
-void flood(int rawSockFd, PayloadHdr ph, unsigned char currentMac[ETH_ALEN], SockAddrLl senderAddr);
+void flood(int rawSockFd, PayloadHdr ph, SockAddrLl senderAddr);
 int odrSend(int sockfd, PayloadHdr ph, unsigned char srcMac[6], unsigned char destMac[6], int destInterfaceIndex);
 int addCurrentNodeAddressAsSource(PayloadHdr* dto);
 void handlePacketAtDestinationNode(int unixDomainFd, PayloadHdr* ph);
 int handleLocalDestMode(PayloadHdr* dto);
-void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr ph, NetworkInterface* currentNode, SockAddrLl sndAddr);
+void handleIncomingPacket(int rawSockFd, int unixDomainFd, PayloadHdr* ph, NetworkInterface* currentNode, SockAddrLl sndAddr);
 NetworkInterface* getCurrentNodeInterface();
 
 // odrImpl.c

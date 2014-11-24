@@ -30,8 +30,10 @@ void printFailed() {
 	printf("FAILED: %s\n", strerror(errno));
 }
 
+//it comes in host order
 char * printIPHuman(in_addr_t ip){
 	struct in_addr ipIa;
-	ipIa.s_addr = ip;
+	ipIa.s_addr = htonl(ip);
+	//ipIa.s_addr = ip;
 	return inet_ntoa(ipIa);
 }
